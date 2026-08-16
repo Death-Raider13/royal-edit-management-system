@@ -1,11 +1,59 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq, lte, ne, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
-import { ENV } from './_core/env';
+import {
+  activityLogs,
+  clients,
+  InsertClient,
+  InsertProject,
+  InsertTask,
+  InsertTeamMember,
+  InsertUser,
+  notifications,
+  projects,
+  tasks,
+  teamMembers,
+  users,
+} from "../drizzle/schema";
+import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
+const projectFields = {
+  id: projects.id,
+  clientId: projects.clientId,
+  name: projects.name,
+  description: projects.description,
+  startDate: projects.startDate,
+  deadline: projects.deadline,
+  status: projects.status,
+  createdAt: projects.createdAt,
+  updatedAt: projects.updatedAt,
+};
+
+const taskFields = {
+  id: tasks.id,
+  projectId: tasks.projectId,
+  assignedMemberId: tasks.assignedMemberId,
+  title: tasks.title,
+  description: tasks.description,
+  priority: tasks.priority,
+  deadline: tasks.deadline,
+  status: tasks.status,
+  createdAt: tasks.createdAt,
+  updatedAt: tasks.updatedAt,
+};
+
+const notificationFields = {
+  id: notifications.id,
+  recipientMemberId: notifications.recipientMemberId,
+  taskId: notifications.taskId,
+  title: notifications.title,
+  content: notifications.content,
+  type: notifications.type,
+  readAt: notifications.readAt,
+  createdAt: notifications.createdAt,
+};
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -18,75 +66,209 @@ export async function getDb() {
   return _db;
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
-
+async function requireDb() {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
-  }
+  if (!db) throw new Error("Database is unavailable.");
+  return db;
+}
 
-  try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
-    const updateSet: Record<string, unknown> = {};
-
-    const textFields = ["name", "email", "loginMethod"] as const;
-    type TextField = (typeof textFields)[number];
-
-    const assignNullable = (field: TextField) => {
-      const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-
-    textFields.forEach(assignNullable);
-
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
+export async function upsertUser(user: InsertUser): Promise<void> {
+  if (!user.openId) throw new Error("User openId is required for upsert");
+  const db = await getDb();
+  if (!db) return;
+  const values: InsertUser = { openId: user.openId, lastSignedIn: user.lastSignedIn ?? new Date() };
+  const updateSet: Record<string, unknown> = { lastSignedIn: values.lastSignedIn };
+  (['name', 'email', 'loginMethod'] as const).forEach((field) => {
+    if (user[field] !== undefined) {
+      values[field] = user[field] ?? null;
+      updateSet[field] = user[field] ?? null;
     }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
-  }
+  });
+  values.role = user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user");
+  updateSet.role = values.role;
+  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
-  }
-
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
-  return result.length > 0 ? result[0] : undefined;
+  if (!db) return undefined;
+  return (await db.select().from(users).where(eq(users.openId, openId)).limit(1))[0];
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function listTeamMembers() {
+  const db = await requireDb();
+  return db.select().from(teamMembers).orderBy(desc(teamMembers.createdAt));
+}
+
+export async function createTeamMember(input: InsertTeamMember) {
+  const db = await requireDb();
+  const result = await db.insert(teamMembers).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateTeamMember(id: number, input: Partial<InsertTeamMember>) {
+  const db = await requireDb();
+  await db.update(teamMembers).set({ ...input, updatedAt: new Date() }).where(eq(teamMembers.id, id));
+}
+
+export async function listClients() {
+  const db = await requireDb();
+  return db.select().from(clients).orderBy(desc(clients.createdAt));
+}
+
+export async function createClient(input: InsertClient) {
+  const db = await requireDb();
+  const result = await db.insert(clients).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateClient(id: number, input: Partial<InsertClient>) {
+  const db = await requireDb();
+  await db.update(clients).set({ ...input, updatedAt: new Date() }).where(eq(clients.id, id));
+}
+
+export async function listProjects() {
+  const db = await requireDb();
+  return db
+    .select({ ...projectFields, clientName: clients.organizationName })
+    .from(projects)
+    .innerJoin(clients, eq(projects.clientId, clients.id))
+    .orderBy(desc(projects.updatedAt));
+}
+
+export async function getProjectWithClient(id: number) {
+  const db = await requireDb();
+  return (await db
+    .select({ ...projectFields, clientName: clients.organizationName })
+    .from(projects)
+    .innerJoin(clients, eq(projects.clientId, clients.id))
+    .where(eq(projects.id, id))
+    .limit(1))[0];
+}
+
+export async function createProject(input: InsertProject) {
+  const db = await requireDb();
+  const result = await db.insert(projects).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateProject(id: number, input: Partial<InsertProject>) {
+  const db = await requireDb();
+  await db.update(projects).set({ ...input, updatedAt: new Date() }).where(eq(projects.id, id));
+}
+
+export async function listTasks() {
+  const db = await requireDb();
+  return db
+    .select({
+      ...taskFields,
+      projectName: projects.name,
+      clientName: clients.organizationName,
+      assignedMemberName: teamMembers.name,
+      assignedMemberEmail: teamMembers.email,
+    })
+    .from(tasks)
+    .innerJoin(projects, eq(tasks.projectId, projects.id))
+    .innerJoin(clients, eq(projects.clientId, clients.id))
+    .leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id))
+    .orderBy(desc(tasks.updatedAt));
+}
+
+export async function getTaskWithDetails(id: number) {
+  const db = await requireDb();
+  return (await db
+    .select({
+      ...taskFields,
+      projectName: projects.name,
+      clientName: clients.organizationName,
+      assignedMemberName: teamMembers.name,
+      assignedMemberEmail: teamMembers.email,
+    })
+    .from(tasks)
+    .innerJoin(projects, eq(tasks.projectId, projects.id))
+    .innerJoin(clients, eq(projects.clientId, clients.id))
+    .leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id))
+    .where(eq(tasks.id, id))
+    .limit(1))[0];
+}
+
+export async function createTask(input: InsertTask) {
+  const db = await requireDb();
+  const result = await db.insert(tasks).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateTask(id: number, input: Partial<InsertTask>) {
+  const db = await requireDb();
+  await db.update(tasks).set({ ...input, updatedAt: new Date() }).where(eq(tasks.id, id));
+}
+
+export async function createNotification(input: {
+  recipientMemberId: number;
+  taskId: number;
+  title: string;
+  content: string;
+  type: "task_assigned" | "task_reassigned" | "system";
+}) {
+  const db = await requireDb();
+  await db.insert(notifications).values(input);
+}
+
+export async function listNotifications() {
+  const db = await requireDb();
+  return db
+    .select({ ...notificationFields, recipientName: teamMembers.name, recipientEmail: teamMembers.email })
+    .from(notifications)
+    .innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id))
+    .orderBy(desc(notifications.createdAt));
+}
+
+export async function markNotificationRead(id: number) {
+  const db = await requireDb();
+  await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id));
+}
+
+export async function createActivityLog(input: { entityType: string; entityId: number; action: string; description: string }) {
+  const db = await requireDb();
+  await db.insert(activityLogs).values(input);
+}
+
+export async function listRecentActivity() {
+  const db = await requireDb();
+  return db.select().from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(8);
+}
+
+export async function getDashboardStats() {
+  const db = await requireDb();
+  const now = new Date();
+  const [[staff], [client], [activeProject], [overdueTask]] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` }).from(teamMembers),
+    db.select({ count: sql<number>`count(*)` }).from(clients),
+    db.select({ count: sql<number>`count(*)` }).from(projects).where(eq(projects.status, "in_progress")),
+    db.select({ count: sql<number>`count(*)` }).from(tasks).where(and(lte(tasks.deadline, now), ne(tasks.status, "completed"))),
+  ]);
+  return {
+    totalStaff: Number(staff?.count ?? 0),
+    totalClients: Number(client?.count ?? 0),
+    activeProjects: Number(activeProject?.count ?? 0),
+    overdueTasks: Number(overdueTask?.count ?? 0),
+  };
+}
+
+export async function getProjectReportData(projectId: number) {
+  const db = await requireDb();
+  const project = await getProjectWithClient(projectId);
+  if (!project) return undefined;
+  const projectTasks = await db
+    .select({ ...taskFields, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email })
+    .from(tasks)
+    .leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id))
+    .where(eq(tasks.projectId, projectId))
+    .orderBy(tasks.deadline);
+  return { project, tasks: projectTasks };
+}
+
+export async function listOverdueTasks() {
+  const db = await requireDb();
+  return db.select().from(tasks).where(and(lte(tasks.deadline, new Date()), ne(tasks.status, "completed")));
+}
