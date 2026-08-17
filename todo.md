@@ -22,4 +22,4 @@
 - [x] Replace HTML and Markdown downloads with a server-generated PDF project report.
 - [x] Configure Nodemailer to send assignment and reassignment messages to the stored team-member email address.
 - [x] Update automated tests, documentation, and deployment configuration for Turso, PDF output, and email delivery.
-- [ ] Push the completed source code to the user’s selected GitHub repository.
+- [x] Push the completed source code to the user’s selected GitHub repository.
