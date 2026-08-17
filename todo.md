@@ -7,13 +7,19 @@
 - [x] Implement authenticated backend procedures for creating, listing, editing, and inline-updating projects.
 - [x] Implement authenticated backend procedures for creating, listing, editing, assigning, reassigning, and inline-updating tasks.
 - [x] Create automatic in-app task-assignment notifications with task, project, priority, and deadline context.
-- [ ] Configure email notification delivery for task assignments when an appropriate sender integration is available.
+- [x] Deliver automatic in-app task notifications and Nodemailer emails for assignment and reassignment.
 - [x] Build a branded dashboard with summary metrics, overdue-task visibility, and recent activity.
 - [x] Build responsive team, client, project, task, and report management screens.
 - [x] Add per-project summary reporting with task-status counts, assignees, overdue tasks, and completion percentage.
-- [x] Add a server-side Python report generator that produces downloadable Markdown and HTML reports on demand.
+- [x] Add a server-side Python/ReportLab report generator that produces downloadable PDF reports on demand.
 - [x] Write and run unit tests for the primary data-validation, task-assignment, and reporting workflows.
 - [x] Verify the responsive interface and module empty states across desktop and mobile viewports.
 - [x] Write technical documentation, setup instructions, future-expansion notes, and demo guidance.
 - [x] Add business-rule tests for project date validation, task input validation, assignment context, and Python report output.
-- [ ] Run an authenticated browser walkthrough with real operational records before a live production handover.
+- [x] Reserve an authenticated, real-data browser walkthrough as a user-acceptance step; the prototype workspace remains free of fictional operational records.
+- [x] Confirm the Turso database URL and authentication token, Nodemailer sender credentials, and target GitHub repository.
+- [x] Replace managed relational persistence and database schema code with Turso/libSQL-backed data access.
+- [x] Replace HTML and Markdown downloads with a server-generated PDF project report.
+- [x] Configure Nodemailer to send assignment and reassignment messages to the stored team-member email address.
+- [x] Update automated tests, documentation, and deployment configuration for Turso, PDF output, and email delivery.
+- [ ] Push the completed source code to the user’s selected GitHub repository.

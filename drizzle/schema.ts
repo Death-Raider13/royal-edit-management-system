@@ -1,80 +1,84 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+const createdAt = () => integer("createdAt", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`);
+const updatedAt = () => integer("updatedAt", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`);
+
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  openId: text("openId").notNull().unique(),
   name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  email: text("email"),
+  loginMethod: text("loginMethod"),
+  role: text("role", { enum: ["user", "admin"] }).notNull().default("user"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+  lastSignedIn: integer("lastSignedIn", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
 });
 
-export const teamMembers = mysqlTable("teamMembers", {
-  id: int("id").autoincrement().primaryKey(),
-  name: varchar("name", { length: 160 }).notNull(),
-  role: varchar("role", { length: 120 }).notNull(),
-  email: varchar("email", { length: 320 }).notNull().unique(),
-  status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const teamMembers = sqliteTable("teamMembers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  role: text("role").notNull(),
+  email: text("email").notNull().unique(),
+  status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
-export const clients = mysqlTable("clients", {
-  id: int("id").autoincrement().primaryKey(),
-  organizationName: varchar("organizationName", { length: 180 }).notNull(),
-  contactPerson: varchar("contactPerson", { length: 160 }).notNull(),
-  email: varchar("email", { length: 320 }).notNull(),
-  phone: varchar("phone", { length: 48 }).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const clients = sqliteTable("clients", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  organizationName: text("organizationName").notNull(),
+  contactPerson: text("contactPerson").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
-export const projects = mysqlTable("projects", {
-  id: int("id").autoincrement().primaryKey(),
-  clientId: int("clientId").notNull().references(() => clients.id),
-  name: varchar("name", { length: 180 }).notNull(),
+export const projects = sqliteTable("projects", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("clientId").notNull().references(() => clients.id),
+  name: text("name").notNull(),
   description: text("description").notNull(),
-  startDate: timestamp("startDate").notNull(),
-  deadline: timestamp("deadline").notNull(),
-  status: mysqlEnum("status", ["planned", "in_progress", "on_hold", "completed", "cancelled"]).default("planned").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  startDate: integer("startDate", { mode: "timestamp_ms" }).notNull(),
+  deadline: integer("deadline", { mode: "timestamp_ms" }).notNull(),
+  status: text("status", { enum: ["planned", "in_progress", "on_hold", "completed", "cancelled"] }).notNull().default("planned"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
-export const tasks = mysqlTable("tasks", {
-  id: int("id").autoincrement().primaryKey(),
-  projectId: int("projectId").notNull().references(() => projects.id),
-  assignedMemberId: int("assignedMemberId").references(() => teamMembers.id),
-  title: varchar("title", { length: 180 }).notNull(),
+export const tasks = sqliteTable("tasks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: integer("projectId").notNull().references(() => projects.id),
+  assignedMemberId: integer("assignedMemberId").references(() => teamMembers.id),
+  title: text("title").notNull(),
   description: text("description").notNull(),
-  priority: mysqlEnum("priority", ["low", "medium", "high"]).default("medium").notNull(),
-  deadline: timestamp("deadline").notNull(),
-  status: mysqlEnum("status", ["not_started", "in_progress", "blocked", "completed"]).default("not_started").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  priority: text("priority", { enum: ["low", "medium", "high"] }).notNull().default("medium"),
+  deadline: integer("deadline", { mode: "timestamp_ms" }).notNull(),
+  status: text("status", { enum: ["not_started", "in_progress", "blocked", "completed"] }).notNull().default("not_started"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
-export const notifications = mysqlTable("notifications", {
-  id: int("id").autoincrement().primaryKey(),
-  recipientMemberId: int("recipientMemberId").notNull().references(() => teamMembers.id),
-  taskId: int("taskId").references(() => tasks.id),
-  title: varchar("title", { length: 180 }).notNull(),
+export const notifications = sqliteTable("notifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  recipientMemberId: integer("recipientMemberId").notNull().references(() => teamMembers.id),
+  taskId: integer("taskId").references(() => tasks.id),
+  title: text("title").notNull(),
   content: text("content").notNull(),
-  type: mysqlEnum("type", ["task_assigned", "task_reassigned", "system"]).default("system").notNull(),
-  readAt: timestamp("readAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  type: text("type", { enum: ["task_assigned", "task_reassigned", "system"] }).notNull().default("system"),
+  readAt: integer("readAt", { mode: "timestamp_ms" }),
+  createdAt: createdAt(),
 });
 
-export const activityLogs = mysqlTable("activityLogs", {
-  id: int("id").autoincrement().primaryKey(),
-  entityType: varchar("entityType", { length: 48 }).notNull(),
-  entityId: int("entityId").notNull(),
-  action: varchar("action", { length: 80 }).notNull(),
+export const activityLogs = sqliteTable("activityLogs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  entityType: text("entityType").notNull(),
+  entityId: integer("entityId").notNull(),
+  action: text("action").notNull(),
   description: text("description").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: createdAt(),
 });
 
 export type User = typeof users.$inferSelect;
@@ -83,4 +87,9 @@ export type InsertTeamMember = typeof teamMembers.$inferInsert;
 export type InsertClient = typeof clients.$inferInsert;
 export type InsertProject = typeof projects.$inferInsert;
 export type InsertTask = typeof tasks.$inferInsert;
+
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type Client = typeof clients.$inferSelect;
+export type Project = typeof projects.$inferSelect;
+export type Task = typeof tasks.$inferSelect;
 

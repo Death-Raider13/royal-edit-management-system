@@ -34,8 +34,9 @@ describe("project reporting workflow", () => {
       tasks: [{ id: 1, title: "Final edit", priority: "high", status: "in_progress", deadline: new Date("2026-08-28"), assignedMemberName: "Ama" }],
     });
     const document = await generateReportWithPython(buildProjectReportPayload(summary));
-    expect(document.filename).toBe("Launch_Film_Royal_Edit_Report");
-    expect(document.markdown).toContain("# Royal Edit Media House — Project Report");
-    expect(document.html).toContain("Launch Film");
+    expect(document.filename).toBe("Launch_Film_Royal_Edit_Report.pdf");
+    expect(document.contentType).toBe("application/pdf");
+    expect(document.filename).toMatch(/\.pdf$/);
+    expect(document.pdfBase64.length).toBeGreaterThan(100);
   });
 });

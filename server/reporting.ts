@@ -72,7 +72,7 @@ export function buildProjectReportPayload(summary: ReturnType<typeof calculatePr
 }
 
 export async function generateReportWithPython(payload: ReturnType<typeof buildProjectReportPayload>) {
-  return new Promise<{ filename: string; markdown: string; html: string }>((resolve, reject) => {
+  return new Promise<{ filename: string; contentType: "application/pdf"; pdfBase64: string }>((resolve, reject) => {
     const child = spawn("python3", ["scripts/project_report.py"], { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
@@ -82,7 +82,7 @@ export async function generateReportWithPython(payload: ReturnType<typeof buildP
     child.on("close", (code) => {
       if (code !== 0) return reject(new Error(stderr || "The reporting service could not generate this report."));
       try {
-        resolve(JSON.parse(stdout) as { filename: string; markdown: string; html: string });
+        resolve(JSON.parse(stdout) as { filename: string; contentType: "application/pdf"; pdfBase64: string });
       } catch {
         reject(new Error("The reporting service returned an invalid document."));
       }

@@ -1,8 +1,15 @@
-import html
+import base64
+import io
 import json
 import re
 import sys
+import textwrap
 from datetime import datetime
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas
 
 
 def label(value: str) -> str:
@@ -18,67 +25,114 @@ def clean_filename(value: str) -> str:
     return safe or "Royal_Edit_Project"
 
 
+def draw_wrapped(pdf: canvas.Canvas, value: str, x: float, y: float, width: int, font: str = "Helvetica", size: float = 10, leading: float = 14, colour=colors.HexColor("#BFB5A3")) -> float:
+    pdf.setFillColor(colour)
+    pdf.setFont(font, size)
+    for line in textwrap.wrap(value, width=width) or [""]:
+        pdf.drawString(x, y, line)
+        y -= leading
+    return y
+
+
+def section(pdf: canvas.Canvas, title: str, x: float, y: float, page_width: float) -> float:
+    pdf.setStrokeColor(colors.HexColor("#5B4A21"))
+    pdf.line(x, y + 7, page_width - x, y + 7)
+    pdf.setFillColor(colors.HexColor("#C9A84C"))
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(x, y - 12, title.upper())
+    return y - 34
+
+
 def generate(payload: dict) -> dict:
     project = payload["project"]
     metrics = payload["metrics"]
-    status_rows = "\n".join(f"| {label(item['status'])} | {item['count']} |" for item in payload["statusCounts"])
-    task_rows = "\n".join(
-        f"| {task['title']} | {label(task['status'])} | {label(task['priority'])} | {task['assignedMemberName'] or 'Unassigned'} | {date_label(task['deadline'])} |"
-        for task in payload["tasks"]
-    ) or "| No tasks recorded | — | — | — | — |"
-    assignees = ", ".join(payload["assignedMembers"]) or "No team members are assigned."
-    markdown = f"""# Royal Edit Media House — Project Report
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    page_width, page_height = A4
+    margin = 22 * mm
 
-## {project['name']}
+    pdf.setFillColor(colors.HexColor("#080808"))
+    pdf.rect(0, 0, page_width, page_height, fill=1, stroke=0)
+    pdf.setFillColor(colors.HexColor("#C9A84C"))
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(margin, page_height - margin, "ROYAL EDIT MEDIA HOUSE  /  PROJECT REPORT")
+    pdf.setFillColor(colors.HexColor("#E8E0D0"))
+    pdf.setFont("Times-Bold", 28)
+    title_y = page_height - margin - 46
+    for index, line in enumerate(textwrap.wrap(project["name"], width=28)[:2]):
+        pdf.drawString(margin, title_y - (index * 32), line)
+    y = title_y - (min(2, len(textwrap.wrap(project["name"], width=28))) * 32) - 12
+    y = draw_wrapped(pdf, f"{project['clientName']}  ·  {label(project['status'])}  ·  {date_label(project['startDate'])} — {date_label(project['deadline'])}", margin, y, 90, size=9, colour=colors.HexColor("#C9A84C")) - 8
+    y = draw_wrapped(pdf, project["description"], margin, y, 92, size=10, leading=15) - 10
 
-**Client:** {project['clientName']}  
-**Project status:** {label(project['status'])}  
-**Delivery window:** {date_label(project['startDate'])} to {date_label(project['deadline'])}  
-**Generated:** {date_label(payload['generatedAt'])}
+    y = section(pdf, "Delivery snapshot", margin, y, page_width)
+    cards = [("TOTAL TASKS", str(metrics["totalTasks"])), ("COMPLETED", str(metrics["completedTasks"])), ("OVERDUE", str(metrics["overdueTasks"])), ("COMPLETION", f"{metrics['completionPercentage']}%")]
+    card_gap = 8
+    card_width = (page_width - (2 * margin) - (3 * card_gap)) / 4
+    for index, (caption, value) in enumerate(cards):
+        x = margin + index * (card_width + card_gap)
+        pdf.setFillColor(colors.HexColor("#15130F"))
+        pdf.setStrokeColor(colors.HexColor("#5B4A21"))
+        pdf.roundRect(x, y - 48, card_width, 48, 4, fill=1, stroke=1)
+        pdf.setFillColor(colors.HexColor("#847966"))
+        pdf.setFont("Helvetica-Bold", 6.5)
+        pdf.drawString(x + 8, y - 14, caption)
+        pdf.setFillColor(colors.HexColor("#C9A84C"))
+        pdf.setFont("Times-Bold", 19)
+        pdf.drawString(x + 8, y - 37, value)
+    y -= 72
 
-{project['description']}
+    y = section(pdf, "Status distribution", margin, y, page_width)
+    for item in payload["statusCounts"]:
+        pdf.setFillColor(colors.HexColor("#BFB5A3"))
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(margin, y, label(item["status"]))
+        pdf.setFillColor(colors.HexColor("#E8E0D0"))
+        pdf.drawRightString(page_width - margin, y, str(item["count"]))
+        pdf.setStrokeColor(colors.HexColor("#302A20"))
+        pdf.line(margin, y - 7, page_width - margin, y - 7)
+        y -= 24
 
-## Delivery Snapshot
+    y -= 8
+    y = section(pdf, "Assigned contributors", margin, y, page_width)
+    y = draw_wrapped(pdf, ", ".join(payload["assignedMembers"]) or "No team members are assigned.", margin, y, 92) - 8
+    pdf.setFillColor(colors.HexColor("#847966"))
+    pdf.setFont("Helvetica", 7)
+    pdf.drawString(margin, 15 * mm, "Prepared automatically by the Royal Edit Operations Hub.")
+    pdf.showPage()
 
-| Metric | Value |
-| --- | ---: |
-| Total tasks | {metrics['totalTasks']} |
-| Completed tasks | {metrics['completedTasks']} |
-| Overdue tasks | {metrics['overdueTasks']} |
-| Completion | {metrics['completionPercentage']}% |
+    pdf.setFillColor(colors.HexColor("#080808"))
+    pdf.rect(0, 0, page_width, page_height, fill=1, stroke=0)
+    y = page_height - margin
+    y = section(pdf, "Task register", margin, y, page_width)
+    headers = [("TASK", margin), ("STATUS", margin + 83 * mm), ("PRIORITY", margin + 112 * mm), ("OWNER", margin + 140 * mm), ("DUE", page_width - margin - 34 * mm)]
+    pdf.setFillColor(colors.HexColor("#C9A84C"))
+    pdf.setFont("Helvetica-Bold", 7)
+    for header, x in headers:
+        pdf.drawString(x, y, header)
+    y -= 14
+    pdf.setStrokeColor(colors.HexColor("#5B4A21"))
+    pdf.line(margin, y + 7, page_width - margin, y + 7)
+    for task in payload["tasks"]:
+        if y < 34 * mm:
+            pdf.showPage()
+            pdf.setFillColor(colors.HexColor("#080808"))
+            pdf.rect(0, 0, page_width, page_height, fill=1, stroke=0)
+            y = page_height - margin
+        pdf.setFillColor(colors.HexColor("#E8E0D0"))
+        pdf.setFont("Helvetica", 8)
+        pdf.drawString(margin, y, textwrap.shorten(task["title"], width=38, placeholder="…"))
+        pdf.setFillColor(colors.HexColor("#BFB5A3"))
+        pdf.drawString(margin + 83 * mm, y, label(task["status"]))
+        pdf.drawString(margin + 112 * mm, y, label(task["priority"]))
+        pdf.drawString(margin + 140 * mm, y, textwrap.shorten(task["assignedMemberName"] or "Unassigned", width=16, placeholder="…"))
+        pdf.drawRightString(page_width - margin, y, date_label(task["deadline"]))
+        pdf.setStrokeColor(colors.HexColor("#302A20"))
+        pdf.line(margin, y - 7, page_width - margin, y - 7)
+        y -= 24
 
-## Task Status Distribution
-
-| Status | Tasks |
-| --- | ---: |
-{status_rows}
-
-## Assigned Contributors
-
-{assignees}
-
-## Task Register
-
-| Task | Status | Priority | Assignee | Deadline |
-| --- | --- | --- | --- | --- |
-{task_rows}
-
----
-
-Prepared automatically by the Royal Edit Operations Hub.
-"""
-    status_cards = "".join(f"<div class='metric'><span>{html.escape(label(item['status']))}</span><strong>{item['count']}</strong></div>" for item in payload["statusCounts"])
-    task_html_rows = "".join(
-        "<tr>"
-        f"<td>{html.escape(task['title'])}</td><td>{html.escape(label(task['status']))}</td><td>{html.escape(label(task['priority']))}</td>"
-        f"<td>{html.escape(task['assignedMemberName'] or 'Unassigned')}</td><td>{html.escape(date_label(task['deadline']))}</td>"
-        "</tr>"
-        for task in payload["tasks"]
-    ) or "<tr><td colspan='5'>No tasks recorded.</td></tr>"
-    html_document = f"""<!doctype html><html lang='en'><head><meta charset='utf-8'><title>{html.escape(project['name'])} — Royal Edit Report</title><style>
-body{{font-family:Arial,sans-serif;background:#080808;color:#E8E0D0;margin:0;padding:44px;line-height:1.55}}.report{{max-width:960px;margin:auto}}.eyebrow{{color:#C9A84C;letter-spacing:.14em;text-transform:uppercase;font-size:12px}}h1,h2{{font-family:Georgia,serif;color:#E8E0D0}}h1{{font-size:42px;margin:.1em 0}}h2{{border-top:1px solid #5b4a21;padding-top:24px;margin-top:34px}}.sub{{color:#BFB5A3}}.grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}}.metric{{border:1px solid #4f421f;background:#14120f;padding:16px;border-radius:8px}}.metric span{{display:block;color:#BFB5A3;font-size:12px;text-transform:uppercase;letter-spacing:.1em}}.metric strong{{color:#C9A84C;font-family:Georgia,serif;font-size:30px}}table{{width:100%;border-collapse:collapse;margin-top:14px}}th,td{{border-bottom:1px solid #3a3428;padding:11px;text-align:left}}th{{color:#C9A84C;font-size:12px;text-transform:uppercase;letter-spacing:.1em}}footer{{margin-top:42px;color:#8f836f;font-size:12px}}
-</style></head><body><main class='report'><p class='eyebrow'>Royal Edit Media House · Project Report</p><h1>{html.escape(project['name'])}</h1><p class='sub'>{html.escape(project['clientName'])} · {html.escape(label(project['status']))} · {html.escape(date_label(project['startDate']))} — {html.escape(date_label(project['deadline']))}</p><p>{html.escape(project['description'])}</p><h2>Delivery Snapshot</h2><section class='grid'><div class='metric'><span>Total tasks</span><strong>{metrics['totalTasks']}</strong></div><div class='metric'><span>Completed</span><strong>{metrics['completedTasks']}</strong></div><div class='metric'><span>Overdue</span><strong>{metrics['overdueTasks']}</strong></div><div class='metric'><span>Completion</span><strong>{metrics['completionPercentage']}%</strong></div></section><h2>Task Status Distribution</h2><section class='grid'>{status_cards}</section><h2>Assigned Contributors</h2><p>{html.escape(assignees)}</p><h2>Task Register</h2><table><thead><tr><th>Task</th><th>Status</th><th>Priority</th><th>Assignee</th><th>Deadline</th></tr></thead><tbody>{task_html_rows}</tbody></table><footer>Prepared automatically by the Royal Edit Operations Hub on {html.escape(date_label(payload['generatedAt']))}.</footer></main></body></html>"""
-    return {"filename": f"{clean_filename(project['name'])}_Royal_Edit_Report", "markdown": markdown, "html": html_document}
+    pdf.save()
+    return {"filename": f"{clean_filename(project['name'])}_Royal_Edit_Report.pdf", "contentType": "application/pdf", "pdfBase64": base64.b64encode(buffer.getvalue()).decode("ascii")}
 
 
 if __name__ == "__main__":

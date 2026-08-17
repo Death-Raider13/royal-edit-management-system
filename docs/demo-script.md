@@ -8,6 +8,6 @@ Open **Projects**, create a project for that client, and set a planned deadline.
 
 Open **Inbox** to show that the notification includes the task title, project name, priority, and deadline. Return to **Tasks** to update task status inline, then update the project status from the **Projects** module.
 
-Finally, open **Reports**, select the project, and demonstrate the calculated task distribution, contributors, overdue work, and completion percentage. Download the report as HTML or Markdown to show the server-side Python automation.
+Finally, open **Reports**, select the project, and demonstrate the calculated task distribution, contributors, overdue work, and completion percentage. Download the report as a PDF to show the server-side Python/ReportLab automation.
 
 Close by noting that the current build is a deliberate prototype and that the technical documentation outlines role-based access, per-user alerts, email delivery, file management, mobile support, and scheduled reports as the next expansion path.

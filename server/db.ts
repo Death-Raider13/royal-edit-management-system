@@ -1,5 +1,6 @@
 import { and, desc, eq, lte, ne, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/libsql";
+import { createClient as createLibsqlClient } from "@libsql/client";
 import {
   activityLogs,
   clients,
@@ -55,11 +56,12 @@ const notificationFields = {
 };
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (!_db && process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const client = createLibsqlClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
+      _db = drizzle(client);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.warn("[Database] Failed to connect to Turso:", error);
       _db = null;
     }
   }
@@ -68,7 +70,7 @@ export async function getDb() {
 
 async function requireDb() {
   const db = await getDb();
-  if (!db) throw new Error("Database is unavailable.");
+  if (!db) throw new Error("Turso database is unavailable.");
   return db;
 }
 
@@ -86,7 +88,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   });
   values.role = user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user");
   updateSet.role = values.role;
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -103,7 +105,7 @@ export async function listTeamMembers() {
 export async function createTeamMember(input: InsertTeamMember) {
   const db = await requireDb();
   const result = await db.insert(teamMembers).values(input);
-  return Number(result[0].insertId);
+  return Number(result.lastInsertRowid);
 }
 
 export async function updateTeamMember(id: number, input: Partial<InsertTeamMember>) {
@@ -119,7 +121,7 @@ export async function listClients() {
 export async function createClient(input: InsertClient) {
   const db = await requireDb();
   const result = await db.insert(clients).values(input);
-  return Number(result[0].insertId);
+  return Number(result.lastInsertRowid);
 }
 
 export async function updateClient(id: number, input: Partial<InsertClient>) {
@@ -129,27 +131,18 @@ export async function updateClient(id: number, input: Partial<InsertClient>) {
 
 export async function listProjects() {
   const db = await requireDb();
-  return db
-    .select({ ...projectFields, clientName: clients.organizationName })
-    .from(projects)
-    .innerJoin(clients, eq(projects.clientId, clients.id))
-    .orderBy(desc(projects.updatedAt));
+  return db.select({ ...projectFields, clientName: clients.organizationName }).from(projects).innerJoin(clients, eq(projects.clientId, clients.id)).orderBy(desc(projects.updatedAt));
 }
 
 export async function getProjectWithClient(id: number) {
   const db = await requireDb();
-  return (await db
-    .select({ ...projectFields, clientName: clients.organizationName })
-    .from(projects)
-    .innerJoin(clients, eq(projects.clientId, clients.id))
-    .where(eq(projects.id, id))
-    .limit(1))[0];
+  return (await db.select({ ...projectFields, clientName: clients.organizationName }).from(projects).innerJoin(clients, eq(projects.clientId, clients.id)).where(eq(projects.id, id)).limit(1))[0];
 }
 
 export async function createProject(input: InsertProject) {
   const db = await requireDb();
   const result = await db.insert(projects).values(input);
-  return Number(result[0].insertId);
+  return Number(result.lastInsertRowid);
 }
 
 export async function updateProject(id: number, input: Partial<InsertProject>) {
@@ -159,43 +152,18 @@ export async function updateProject(id: number, input: Partial<InsertProject>) {
 
 export async function listTasks() {
   const db = await requireDb();
-  return db
-    .select({
-      ...taskFields,
-      projectName: projects.name,
-      clientName: clients.organizationName,
-      assignedMemberName: teamMembers.name,
-      assignedMemberEmail: teamMembers.email,
-    })
-    .from(tasks)
-    .innerJoin(projects, eq(tasks.projectId, projects.id))
-    .innerJoin(clients, eq(projects.clientId, clients.id))
-    .leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id))
-    .orderBy(desc(tasks.updatedAt));
+  return db.select({ ...taskFields, projectName: projects.name, clientName: clients.organizationName, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).innerJoin(clients, eq(projects.clientId, clients.id)).leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id)).orderBy(desc(tasks.updatedAt));
 }
 
 export async function getTaskWithDetails(id: number) {
   const db = await requireDb();
-  return (await db
-    .select({
-      ...taskFields,
-      projectName: projects.name,
-      clientName: clients.organizationName,
-      assignedMemberName: teamMembers.name,
-      assignedMemberEmail: teamMembers.email,
-    })
-    .from(tasks)
-    .innerJoin(projects, eq(tasks.projectId, projects.id))
-    .innerJoin(clients, eq(projects.clientId, clients.id))
-    .leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id))
-    .where(eq(tasks.id, id))
-    .limit(1))[0];
+  return (await db.select({ ...taskFields, projectName: projects.name, clientName: clients.organizationName, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).innerJoin(clients, eq(projects.clientId, clients.id)).leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id)).where(eq(tasks.id, id)).limit(1))[0];
 }
 
 export async function createTask(input: InsertTask) {
   const db = await requireDb();
   const result = await db.insert(tasks).values(input);
-  return Number(result[0].insertId);
+  return Number(result.lastInsertRowid);
 }
 
 export async function updateTask(id: number, input: Partial<InsertTask>) {
@@ -203,24 +171,14 @@ export async function updateTask(id: number, input: Partial<InsertTask>) {
   await db.update(tasks).set({ ...input, updatedAt: new Date() }).where(eq(tasks.id, id));
 }
 
-export async function createNotification(input: {
-  recipientMemberId: number;
-  taskId: number;
-  title: string;
-  content: string;
-  type: "task_assigned" | "task_reassigned" | "system";
-}) {
+export async function createNotification(input: { recipientMemberId: number; taskId: number; title: string; content: string; type: "task_assigned" | "task_reassigned" | "system" }) {
   const db = await requireDb();
   await db.insert(notifications).values(input);
 }
 
 export async function listNotifications() {
   const db = await requireDb();
-  return db
-    .select({ ...notificationFields, recipientName: teamMembers.name, recipientEmail: teamMembers.email })
-    .from(notifications)
-    .innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id))
-    .orderBy(desc(notifications.createdAt));
+  return db.select({ ...notificationFields, recipientName: teamMembers.name, recipientEmail: teamMembers.email }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id)).orderBy(desc(notifications.createdAt));
 }
 
 export async function markNotificationRead(id: number) {
@@ -247,24 +205,14 @@ export async function getDashboardStats() {
     db.select({ count: sql<number>`count(*)` }).from(projects).where(eq(projects.status, "in_progress")),
     db.select({ count: sql<number>`count(*)` }).from(tasks).where(and(lte(tasks.deadline, now), ne(tasks.status, "completed"))),
   ]);
-  return {
-    totalStaff: Number(staff?.count ?? 0),
-    totalClients: Number(client?.count ?? 0),
-    activeProjects: Number(activeProject?.count ?? 0),
-    overdueTasks: Number(overdueTask?.count ?? 0),
-  };
+  return { totalStaff: Number(staff?.count ?? 0), totalClients: Number(client?.count ?? 0), activeProjects: Number(activeProject?.count ?? 0), overdueTasks: Number(overdueTask?.count ?? 0) };
 }
 
 export async function getProjectReportData(projectId: number) {
   const db = await requireDb();
   const project = await getProjectWithClient(projectId);
   if (!project) return undefined;
-  const projectTasks = await db
-    .select({ ...taskFields, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email })
-    .from(tasks)
-    .leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id))
-    .where(eq(tasks.projectId, projectId))
-    .orderBy(tasks.deadline);
+  const projectTasks = await db.select({ ...taskFields, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email }).from(tasks).leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id)).where(eq(tasks.projectId, projectId)).orderBy(tasks.deadline);
   return { project, tasks: projectTasks };
 }
 

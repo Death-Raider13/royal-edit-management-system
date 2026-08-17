@@ -4,6 +4,7 @@ import * as db from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { buildProjectReportPayload, calculateProjectSummary, generateReportWithPython } from "../reporting";
 import { buildAssignmentNotification } from "../workflow";
+import { sendTaskAssignmentEmail } from "../mailer";
 
 const projectStatus = z.enum(["planned", "in_progress", "on_hold", "completed", "cancelled"]);
 const taskStatus = z.enum(["not_started", "in_progress", "blocked", "completed"]);
@@ -66,6 +67,21 @@ async function sendAssignmentNotification(taskId: number, previousMemberId?: num
     taskId,
     ...notification,
   });
+  if (task.assignedMemberEmail) {
+    try {
+      await sendTaskAssignmentEmail({
+        recipientName: String(task.assignedMemberName ?? "team member"),
+        recipientEmail: String(task.assignedMemberEmail),
+        taskTitle: String(task.title),
+        projectName: String(task.projectName),
+        priority: String(task.priority),
+        deadline: task.deadline as Date,
+        reassigned,
+      });
+    } catch (error) {
+      console.warn("[Mailer] Assignment email could not be sent; in-app notification was retained.", error);
+    }
+  }
   await logActivity("task", taskId, reassigned ? "reassigned" : "assigned", `${String(task.title)} was ${reassigned ? "reassigned" : "assigned"} to ${task.assignedMemberName ? String(task.assignedMemberName) : "a team member"}.`);
 }
 

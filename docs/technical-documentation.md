@@ -6,7 +6,7 @@
 
 ## 1. What was built
 
-The **Royal Edit Operations Hub** is a branded internal web application for organising the agency’s staff, client relationships, projects, task assignments, deadlines, notifications, and project-level reporting. The implementation is intended as a functional prototype for the Digital & Technology Lead assessment. It prioritises a coherent operational workflow rather than an oversized feature set.
+The **Royal Edit Operations Hub** is a branded internal web application for organising the agency’s staff, client relationships, projects, task assignments, deadlines, notifications, and project-level reporting. It uses the user-owned Turso/libSQL database and SMTP sender configuration supplied for this deployment. The implementation is intended as a functional prototype for the Digital & Technology Lead assessment. It prioritises a coherent operational workflow rather than an oversized feature set.
 
 The application is designed around one practical delivery sequence: a manager adds team members and clients, creates a project for a client, creates and assigns the tasks required to complete that project, updates statuses as work progresses, and generates a current project report when needed.
 
@@ -21,7 +21,7 @@ Creative and media teams often operate across fragmented messages, spreadsheets,
 | Project work has no consistent lifecycle | Projects have a client, description, delivery dates, and a controlled status set. |
 | Task ownership may be unclear | Each task can be assigned or reassigned to a team member. |
 | Assignments may be missed | An in-app notification is automatically created whenever a task is assigned or reassigned. |
-| Reporting takes manual effort | The Reports module calculates delivery metrics and invokes a server-side Python generator for downloadable HTML or Markdown reports. |
+| Reporting takes manual effort | The Reports module calculates delivery metrics and invokes a server-side Python/ReportLab generator for a downloadable PDF report. |
 
 ## 3. Implemented modules and workflows
 
@@ -34,9 +34,10 @@ Creative and media teams often operate across fragmented messages, spreadsheets,
 | Tasks | Creates, edits, views, assigns, reassigns, and updates task status inline. |
 | Notifications | Records automatic in-app task-assignment and reassignment notifications. Each includes task title, project name, priority, and deadline. |
 | Reports | Calculates status counts, completion percentage, overdue items, and contributors for a selected project. |
-| Python automation | Produces a branded HTML or Markdown project report on demand. |
+| Python automation | Produces a branded PDF project report on demand. |
+| Email delivery | Nodemailer sends assignment and reassignment emails directly to the assigned member’s stored email address. |
 
-> **Notification design:** The requested “email and/or in-app” requirement is met through automatic in-app notifications. Email delivery is intentionally left as a future integration because a production sender account and secure provider credentials were not supplied for this prototype.
+> **Notification design:** Every assignment and reassignment creates an in-app notification and attempts a Nodemailer email to the assigned team member’s stored email address. If SMTP is temporarily unavailable, the in-app notification remains recorded and the server logs the delivery failure.
 
 ## 4. System architecture
 
@@ -45,10 +46,10 @@ flowchart LR
   User[Authenticated Royal Edit user] --> UI[React + TypeScript interface]
   UI --> RPC[tRPC procedures]
   RPC --> Rules[Validation and workflow logic]
-  Rules --> DB[(MySQL / TiDB database)]
+  Rules --> DB[(Turso / libSQL database)]
   Rules --> Notice[Notifications table]
   Rules --> Python[Python report generator]
-  Python --> Download[HTML or Markdown download]
+  Python --> Download[PDF download]
   DB --> Dashboard[Dashboard, lists, reports]
 ```
 
@@ -74,10 +75,11 @@ The task-assignment workflow is automatic. When a task is created with an assign
 | Frontend | React 19, TypeScript, Tailwind CSS | Provides a responsive interface with strong type safety and fast component iteration. |
 | UI system | Existing accessible component primitives with custom Royal Edit styling | Preserves keyboard-friendly interaction patterns while applying the brand system consistently. |
 | Backend | Express and tRPC | Keeps client-server contracts typed end-to-end and reduces duplicated API definitions. |
-| Database layer | Drizzle ORM with MySQL/TiDB | Supports a relational data model suitable for client, project, task, and notification relationships. |
+| Database layer | Drizzle ORM with Turso/libSQL | Preserves the SQL relational model while moving persistence to the user-owned Turso database. |
 | Authentication | Managed OAuth included with the application template | Provides a secure sign-in foundation for internal access. |
-| Automation | Python 3 script invoked by the server | Creates portable report files from structured project data. |
-| Deployment runtime | Node 22 with Python 3 available in a Docker image | Allows the report generator to run in production as part of an on-demand request. |
+| Automation | Python 3 + ReportLab invoked by the server | Creates branded PDF reports from structured project data. |
+| Email delivery | Nodemailer over the supplied Gmail SMTP configuration | Sends assignment and reassignment messages directly to team-member email addresses. |
+| Deployment runtime | Node 22 with Python 3 and ReportLab available in a Docker image | Allows the PDF generator to run in production as part of an on-demand request. |
 
 ## 7. Royal Edit brand implementation
 
@@ -95,7 +97,8 @@ The project uses the configured database and OAuth environment supplied by the h
 | `pnpm check` | Runs the TypeScript compiler without emitting files. |
 | `pnpm test` | Runs the automated unit tests. |
 | `pnpm build` | Builds the production frontend and server bundle. |
-| `python3 scripts/project_report.py` | Runs the report generator, accepting JSON from standard input. |
+| `pnpm db:push` | Applies the idempotent operational schema to the configured Turso database. |
+| `python3 scripts/project_report.py` | Runs the PDF report generator, accepting JSON from standard input. |
 
 ### Suggested product walkthrough
 
@@ -103,10 +106,10 @@ The project uses the configured database and OAuth environment supplied by the h
 2. Add a staff member from **Team**.
 3. Add a client organisation from **Clients**.
 4. Create a linked project from **Projects**.
-5. Add and assign a task from **Tasks**. The task owner’s in-app notification is created automatically.
+5. Add and assign a task from **Tasks**. The task owner receives an in-app notification and an assignment email automatically.
 6. View the new message in **Inbox**.
 7. Update a task or project status inline, then view the calculated results in **Reports**.
-8. Select **Download HTML** or **Download Markdown** to run the server-side Python report generator and download the report.
+8. Select **Download project PDF** to run the server-side Python/ReportLab generator and download the report.
 
 ## 9. Validation and testing performed
 
@@ -115,8 +118,10 @@ The implementation includes a TypeScript check, a production build, unit tests, 
 | Check | Result |
 |---|---|
 | TypeScript validation | Passed with `pnpm check`. |
-| Unit tests | Passed: logout, task notification context, and project-summary calculations. |
-| Python report generation | Passed with a representative project payload. |
+| Unit tests | Passed: logout, input validation, task notification context, project-summary calculations, and PDF payload generation. |
+| Turso read-only query | Passed against the supplied database URL and token. |
+| Gmail SMTP transport | Nodemailer transport authentication passed without sending a test email. |
+| Python PDF generation | Passed with a representative project payload and PDF assertion. |
 | Production build | Passed with `pnpm build`. |
 | Visual review | Dashboard, management modules, report workspace, inbox, and mobile overview were inspected in the browser. |
 
@@ -133,11 +138,11 @@ The prototype establishes the foundation for a larger internal platform. The nex
 | Area | Recommended improvement |
 |---|---|
 | Authentication and access | Add role-based permissions such as Administrator, Project Manager, Creative, and Viewer. |
-| Email notifications | Connect a transactional email service securely and send assignment messages to the recipient’s stored email address. |
+| Email notifications | Add delivery retries, bounce handling, and provider monitoring around the current Nodemailer SMTP integration. |
 | Per-person inbox | Restrict notification viewing so a member sees only their own alerts, while managers retain an oversight view. |
 | Project detail pages | Add dedicated project and task detail routes with timelines, comments, attachments, and change history. |
 | File handling | Store project briefs, deliverables, and approval files in object storage, saving only metadata in the database. |
-| Reporting | Add scheduled weekly reports, report history, PDF output, and workload analytics. |
+| Reporting | Add scheduled weekly reports, report history, richer PDF layouts, and workload analytics. |
 | Calendar integrations | Synchronise deadlines with a shared agency calendar. |
 | Audit and protection | Add immutable audit events, record retention rules, rate limiting, structured backups, and field-level access policies. |
 | Mobile application | Reuse the typed backend for a React Native/Expo mobile companion focused on assignments, notifications, and status updates. |
