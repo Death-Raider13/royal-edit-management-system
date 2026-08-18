@@ -73,7 +73,8 @@ export function buildProjectReportPayload(summary: ReturnType<typeof calculatePr
 
 export async function generateReportWithPython(payload: ReturnType<typeof buildProjectReportPayload>) {
   return new Promise<{ filename: string; contentType: "application/pdf"; pdfBase64: string }>((resolve, reject) => {
-    const child = spawn("python3", ["scripts/project_report.py"], { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] });
+    const pythonExec = process.platform === "win32" ? "python" : "python3";
+    const child = spawn(pythonExec, ["scripts/project_report.py"], { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += String(chunk); });

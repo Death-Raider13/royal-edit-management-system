@@ -9,8 +9,10 @@ import {
   InsertTask,
   InsertTeamMember,
   InsertUser,
+  InsertSession,
   notifications,
   projects,
+  sessions,
   tasks,
   teamMembers,
   users,
@@ -74,27 +76,57 @@ async function requireDb() {
   return db;
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) throw new Error("User openId is required for upsert");
-  const db = await getDb();
-  if (!db) return;
-  const values: InsertUser = { openId: user.openId, lastSignedIn: user.lastSignedIn ?? new Date() };
-  const updateSet: Record<string, unknown> = { lastSignedIn: values.lastSignedIn };
-  (['name', 'email', 'loginMethod'] as const).forEach((field) => {
-    if (user[field] !== undefined) {
-      values[field] = user[field] ?? null;
-      updateSet[field] = user[field] ?? null;
-    }
-  });
-  values.role = user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user");
-  updateSet.role = values.role;
-  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
+export async function createUser(input: InsertUser) {
+  const db = await requireDb();
+  const result = await db.insert(users).values(input);
+  return Number(result.lastInsertRowid);
 }
 
-export async function getUserByOpenId(openId: string) {
+export async function getUserByEmail(email: string) {
   const db = await getDb();
   if (!db) return undefined;
-  return (await db.select().from(users).where(eq(users.openId, openId)).limit(1))[0];
+  return (await db.select().from(users).where(eq(users.email, email)).limit(1))[0];
+}
+
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(users).where(eq(users.id, id)).limit(1))[0];
+}
+
+export async function updateUserLastSignedIn(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, id));
+}
+
+export async function createSession(input: InsertSession) {
+  const db = await requireDb();
+  await db.insert(sessions).values(input);
+}
+
+export async function getSessionById(id: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(sessions).where(eq(sessions.id, id)).limit(1))[0];
+}
+
+export async function deleteSession(id: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(sessions).where(eq(sessions.id, id));
+}
+
+export async function deleteAllUserSessions(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(sessions).where(eq(sessions.userId, userId));
+}
+
+export async function updateSessionExpiry(id: string, expiresAt: Date) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(sessions).set({ expiresAt }).where(eq(sessions.id, id));
 }
 
 export async function listTeamMembers() {

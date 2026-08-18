@@ -6,14 +6,19 @@ const updatedAt = () => integer("updatedAt", { mode: "timestamp_ms" }).notNull()
 
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  openId: text("openId").notNull().unique(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
   name: text("name"),
-  email: text("email"),
-  loginMethod: text("loginMethod"),
   role: text("role", { enum: ["user", "admin"] }).notNull().default("user"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
   lastSignedIn: integer("lastSignedIn", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+});
+
+export const sessions = sqliteTable("sessions", {
+  id: text("id").primaryKey(),
+  userId: integer("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: integer("expiresAt", { mode: "timestamp_ms" }).notNull(),
 });
 
 export const teamMembers = sqliteTable("teamMembers", {
@@ -82,7 +87,9 @@ export const activityLogs = sqliteTable("activityLogs", {
 });
 
 export type User = typeof users.$inferSelect;
+export type Session = typeof sessions.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+export type InsertSession = typeof sessions.$inferInsert;
 export type InsertTeamMember = typeof teamMembers.$inferInsert;
 export type InsertClient = typeof clients.$inferInsert;
 export type InsertProject = typeof projects.$inferInsert;

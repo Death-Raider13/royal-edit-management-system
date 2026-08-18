@@ -7,7 +7,12 @@ if (!url || !authToken) throw new Error("TURSO_DATABASE_URL and TURSO_AUTH_TOKEN
 const client = createClient({ url, authToken });
 const statements = [
   `PRAGMA foreign_keys = ON`,
-  `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, openId TEXT NOT NULL UNIQUE, name TEXT, email TEXT, loginMethod TEXT, role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin')), createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), lastSignedIn INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
+  // Drop old users table (no real users — fresh start)
+  `DROP TABLE IF EXISTS sessions`,
+  `DROP TABLE IF EXISTS users`,
+  // Recreate with new schema
+  `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, password TEXT NOT NULL, name TEXT, role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin')), createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), lastSignedIn INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
+  `CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expiresAt INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS teamMembers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, role TEXT NOT NULL, email TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')), createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
   `CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY AUTOINCREMENT, organizationName TEXT NOT NULL, contactPerson TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
   `CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, clientId INTEGER NOT NULL REFERENCES clients(id), name TEXT NOT NULL, description TEXT NOT NULL, startDate INTEGER NOT NULL, deadline INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned','in_progress','on_hold','completed','cancelled')), createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
@@ -19,9 +24,10 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS tasks_assignedMemberId_idx ON tasks(assignedMemberId)`,
   `CREATE INDEX IF NOT EXISTS notifications_recipientMemberId_idx ON notifications(recipientMemberId)`,
   `CREATE INDEX IF NOT EXISTS activityLogs_createdAt_idx ON activityLogs(createdAt)`,
+  `CREATE INDEX IF NOT EXISTS sessions_userId_idx ON sessions(userId)`,
 ];
 
 await client.batch(statements.map((sql) => ({ sql })), "write");
-const result = await client.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users','teamMembers','clients','projects','tasks','notifications','activityLogs') ORDER BY name");
+const result = await client.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users','sessions','teamMembers','clients','projects','tasks','notifications','activityLogs') ORDER BY name");
 console.log(JSON.stringify({ tables: result.rows.map((row) => row.name) }));
 client.close();

@@ -12,15 +12,20 @@ import Projects from "./pages/Projects";
 import Tasks from "./pages/Tasks";
 import Reports from "./pages/Reports";
 import Notifications from "./pages/Notifications";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import { useAuth } from "./_core/hooks/useAuth";
 
 function Workspace({ children }: { children: React.ReactNode }) {
+  useAuth();
   return <DashboardLayout>{children}</DashboardLayout>;
 }
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
       <Route path={"/"}><Workspace><Home /></Workspace></Route>
       <Route path={"/team"}><Workspace><TeamMembers /></Workspace></Route>
       <Route path={"/clients"}><Workspace><Clients /></Workspace></Route>
@@ -34,11 +39,6 @@ function Router() {
     </Switch>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
   return (

@@ -1,11 +1,10 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { startLogin } from "@/const";
 import { cn } from "@/lib/utils";
 import { Bell, BriefcaseBusiness, ChartNoAxesCombined, ChevronRight, CircleUserRound, LayoutDashboard, LogOut, UsersRound, Workflow } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "./ui/button";
 
-const logoUrl = "/manus-storage/royal-edit-primary-logo_16bef8d9.png";
+const logoUrl = "/royalmin.png";
 const navigation = [
   { label: "Overview", path: "/", icon: LayoutDashboard },
   { label: "Team", path: "/team", icon: UsersRound },
@@ -22,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#080808]"><div className="h-10 w-10 animate-spin rounded-full border-2 border-[#C9A84C] border-t-transparent" /></div>;
   if (!user) {
-    return <main className="brand-grid grid min-h-screen place-items-center bg-[#080808] p-6"><section className="panel-surface w-full max-w-md rounded-2xl border border-[#C9A84C]/25 p-9 text-center"><img src={logoUrl} alt="Royal Edit Media House" className="mx-auto h-28 w-auto object-contain" /><div className="gold-line mx-auto mt-5 h-px w-28" /><h1 className="font-display mt-7 text-4xl text-[#E8E0D0]">Operations Hub</h1><p className="mt-3 text-sm leading-6 text-[#A99E8C]">Secure access for the Royal Edit team, client, project, and task workspace.</p><Button onClick={() => startLogin()} className="mt-8 w-full bg-[#C9A84C] text-[#080808] hover:bg-[#E8E0D0]">Enter workspace <ChevronRight className="ml-1 h-4 w-4" /></Button></section></main>;
+    return <main className="brand-grid grid min-h-screen place-items-center bg-[#080808] p-6"><section className="panel-surface w-full max-w-md rounded-2xl border border-[#C9A84C]/25 p-9 text-center"><img src={logoUrl} alt="Royal Edit Media House" className="mx-auto h-28 w-auto object-contain" /><div className="gold-line mx-auto mt-5 h-px w-28" /><h1 className="font-display mt-7 text-4xl text-[#E8E0D0]">Operations Hub</h1><p className="mt-3 text-sm leading-6 text-[#A99E8C]">Secure access for the Royal Edit team, client, project, and task workspace.</p><Button onClick={() => setLocation('/login')} className="mt-8 w-full bg-[#C9A84C] text-[#080808] hover:bg-[#E8E0D0]">Enter workspace <ChevronRight className="ml-1 h-4 w-4" /></Button></section></main>;
   }
 
   const active = navigation.find((item) => item.path === location)?.label ?? "Operations";
