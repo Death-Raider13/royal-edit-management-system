@@ -63,6 +63,22 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    setupPassword: publicProcedure
+      .input(z.object({ token: z.string().min(20), password: z.string().min(8, "Password must be at least 8 characters") }))
+      .mutation(async ({ input, ctx }) => {
+        const invitation = await db.getInvitationToken(input.token);
+        if (!invitation || invitation.usedAt || invitation.expiresAt.getTime() < Date.now() || !invitation.userId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "This invitation is invalid or has expired. Ask an administrator to resend it." });
+        }
+        const passwordHash = await hashPassword(input.password);
+        await db.updateUserPassword(invitation.userId, passwordHash);
+        await db.updateTeamMember(invitation.teamMemberId, { userId: invitation.userId, invitationStatus: "accepted", invitationAcceptedAt: new Date(), status: "active" });
+        await db.markInvitationTokenUsed(input.token);
+        const sessionId = await createSession(invitation.userId);
+        setSessionCookie(ctx.res, sessionId);
+        return { success: true };
+      }),
+
     login: publicProcedure
       .input(z.object({
         email: z.string().email(),

@@ -8,6 +8,8 @@ import {
   InsertProject,
   InsertTask,
   InsertTeamMember,
+  InsertInvitationToken,
+  invitationTokens,
   InsertUser,
   InsertSession,
   notifications,
@@ -100,6 +102,11 @@ export async function updateUserLastSignedIn(id: number) {
   await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, id));
 }
 
+export async function updateUserPassword(id: number, password: string) {
+  const db = await requireDb();
+  await db.update(users).set({ password, updatedAt: new Date(), lastSignedIn: new Date() }).where(eq(users.id, id));
+}
+
 export async function createSession(input: InsertSession) {
   const db = await requireDb();
   await db.insert(sessions).values(input);
@@ -145,6 +152,28 @@ export async function updateTeamMember(id: number, input: Partial<InsertTeamMemb
   await db.update(teamMembers).set({ ...input, updatedAt: new Date() }).where(eq(teamMembers.id, id));
 }
 
+export async function getTeamMemberById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(teamMembers).where(eq(teamMembers.id, id)).limit(1))[0];
+}
+
+export async function createInvitationToken(input: InsertInvitationToken) {
+  const db = await requireDb();
+  await db.insert(invitationTokens).values(input);
+}
+
+export async function getInvitationToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select({ token: invitationTokens.token, teamMemberId: invitationTokens.teamMemberId, expiresAt: invitationTokens.expiresAt, usedAt: invitationTokens.usedAt, userId: teamMembers.userId, email: teamMembers.email, name: teamMembers.name }).from(invitationTokens).innerJoin(teamMembers, eq(invitationTokens.teamMemberId, teamMembers.id)).where(eq(invitationTokens.token, token)).limit(1))[0];
+}
+
+export async function markInvitationTokenUsed(token: string) {
+  const db = await requireDb();
+  await db.update(invitationTokens).set({ usedAt: new Date() }).where(eq(invitationTokens.token, token));
+}
+
 export async function listClients() {
   const db = await requireDb();
   return db.select().from(clients).orderBy(desc(clients.createdAt));
@@ -182,15 +211,15 @@ export async function updateProject(id: number, input: Partial<InsertProject>) {
   await db.update(projects).set({ ...input, updatedAt: new Date() }).where(eq(projects.id, id));
 }
 
-export async function listTasks(memberEmail?: string | null) {
+export async function listTasks(memberUserId?: number | null) {
   const db = await requireDb();
   const query = db.select({ ...taskFields, projectName: projects.name, clientName: clients.organizationName, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).innerJoin(clients, eq(projects.clientId, clients.id)).leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id));
-  return memberEmail ? query.where(eq(teamMembers.email, memberEmail)).orderBy(desc(tasks.updatedAt)) : query.orderBy(desc(tasks.updatedAt));
+  return memberUserId ? query.where(eq(teamMembers.userId, memberUserId)).orderBy(desc(tasks.updatedAt)) : query.orderBy(desc(tasks.updatedAt));
 }
 
-export async function getTaskWithDetails(id: number, memberEmail?: string | null) {
+export async function getTaskWithDetails(id: number, memberUserId?: number | null) {
   const db = await requireDb();
-  const conditions = memberEmail ? and(eq(tasks.id, id), eq(teamMembers.email, memberEmail)) : eq(tasks.id, id);
+  const conditions = memberUserId ? and(eq(tasks.id, id), eq(teamMembers.userId, memberUserId)) : eq(tasks.id, id);
   return (await db.select({ ...taskFields, projectName: projects.name, clientName: clients.organizationName, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).innerJoin(clients, eq(projects.clientId, clients.id)).leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id)).where(conditions).limit(1))[0];
 }
 
@@ -210,16 +239,16 @@ export async function createNotification(input: { recipientMemberId: number; tas
   await db.insert(notifications).values(input);
 }
 
-export async function listNotifications(memberEmail?: string | null) {
+export async function listNotifications(memberUserId?: number | null) {
   const db = await requireDb();
   const query = db.select({ ...notificationFields, recipientName: teamMembers.name, recipientEmail: teamMembers.email }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id));
-  return memberEmail ? query.where(eq(teamMembers.email, memberEmail)).orderBy(desc(notifications.createdAt)) : query.orderBy(desc(notifications.createdAt));
+  return memberUserId ? query.where(eq(teamMembers.userId, memberUserId)).orderBy(desc(notifications.createdAt)) : query.orderBy(desc(notifications.createdAt));
 }
 
-export async function markNotificationRead(id: number, memberEmail?: string | null) {
+export async function markNotificationRead(id: number, memberUserId?: number | null) {
   const db = await requireDb();
-  if (memberEmail) {
-    const owned = await db.select({ id: notifications.id }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id)).where(and(eq(notifications.id, id), eq(teamMembers.email, memberEmail))).limit(1);
+  if (memberUserId) {
+    const owned = await db.select({ id: notifications.id }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id)).where(and(eq(notifications.id, id), eq(teamMembers.userId, memberUserId))).limit(1);
     if (!owned[0]) return;
   }
   await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id));

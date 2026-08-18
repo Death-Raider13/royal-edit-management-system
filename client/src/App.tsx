@@ -14,6 +14,7 @@ import Reports from "./pages/Reports";
 import Notifications from "./pages/Notifications";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import SetupPassword from "./pages/SetupPassword";
 import { useAuth } from "./_core/hooks/useAuth";
 
 function Workspace({ children }: { children: React.ReactNode }) {
@@ -26,6 +27,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/setup-password" component={SetupPassword} />
       <Route path={"/"}><Workspace><Home /></Workspace></Route>
       <Route path={"/team"}><Workspace><TeamMembers /></Workspace></Route>
       <Route path={"/clients"}><Workspace><Clients /></Workspace></Route>

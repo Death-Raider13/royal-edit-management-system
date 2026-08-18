@@ -9,6 +9,15 @@ const dbMocks = vi.hoisted(() => ({
   getUserById: vi.fn(),
   updateSessionExpiry: vi.fn().mockResolvedValue(undefined),
   updateUserLastSignedIn: vi.fn().mockResolvedValue(undefined),
+  updateUserPassword: vi.fn().mockResolvedValue(undefined),
+  createTeamMember: vi.fn().mockResolvedValue(22),
+  createInvitationToken: vi.fn().mockResolvedValue(undefined),
+  getTeamMemberById: vi.fn(),
+  updateTeamMember: vi.fn().mockResolvedValue(undefined),
+  getInvitationToken: vi.fn(),
+  markInvitationTokenUsed: vi.fn().mockResolvedValue(undefined),
+  logActivity: vi.fn().mockResolvedValue(undefined),
+  createActivityLog: vi.fn().mockResolvedValue(undefined),
   getDashboardStats: vi.fn().mockResolvedValue({ totalStaff: 0, totalClients: 0, activeProjects: 0, overdueTasks: 0 }),
   listRecentActivity: vi.fn().mockResolvedValue([]),
 }));
@@ -17,6 +26,7 @@ vi.mock("./db", () => dbMocks);
 vi.mock("./mailer", () => ({
   sendWelcomeEmail: vi.fn().mockResolvedValue(undefined),
   sendTaskAssignmentEmail: vi.fn().mockResolvedValue(undefined),
+  sendTeamInvitationEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { appRouter } from "./routers";
@@ -53,6 +63,9 @@ describe("standard authentication", () => {
     vi.clearAllMocks();
     dbMocks.createSession.mockResolvedValue(undefined);
     dbMocks.createUser.mockResolvedValue(7);
+    dbMocks.getUserByEmail.mockResolvedValue(undefined);
+    dbMocks.getInvitationToken.mockResolvedValue(undefined);
+    dbMocks.getTeamMemberById.mockResolvedValue(undefined);
   });
 
   it("hashes passwords and verifies the original value only", async () => {
@@ -115,6 +128,54 @@ describe("standard authentication", () => {
     const result = await validateSession("active");
     expect(result?.user.id).toBe(7);
     expect(dbMocks.updateSessionExpiry).toHaveBeenCalledWith("active", expect.any(Date));
+  });
+
+  it("creates a linked member account and sends a one-time invitation", async () => {
+    dbMocks.getUserByEmail.mockResolvedValue(undefined);
+    const administrator = { ...user, role: "admin" as const };
+    const caller = appRouter.createCaller({ ...context(administrator), req: { protocol: "https", headers: { host: "hub.example.com" } } as any });
+    await expect(caller.operations.teamMembers.create({ name: "New Teammate", role: "Editor", email: "new-teammate@example.com", status: "active" })).resolves.toMatchObject({ id: 22, invited: true });
+    expect(dbMocks.createUser).toHaveBeenCalledWith(expect.objectContaining({ email: "new-teammate@example.com", role: "user" }));
+    expect(dbMocks.createTeamMember).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, invitationStatus: "pending" }));
+    expect(dbMocks.createInvitationToken).toHaveBeenCalledWith(expect.objectContaining({ teamMemberId: 22, expiresAt: expect.any(Date) }));
+    const mailer = await import("./mailer");
+    expect(mailer.sendTeamInvitationEmail).toHaveBeenCalledWith(expect.objectContaining({ recipientEmail: "new-teammate@example.com", inviteUrl: expect.stringContaining("setup-password?token=") }));
+  });
+
+  it("rejects creating a team member when the email already owns a login", async () => {
+    dbMocks.getUserByEmail.mockResolvedValue(user);
+    const caller = appRouter.createCaller({ ...context({ ...user, role: "admin" as const }), req: { protocol: "https", headers: { host: "hub.example.com" } } as any });
+    await expect(caller.operations.teamMembers.create({ name: "Duplicate", role: "Editor", email: user.email, status: "active" })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(dbMocks.createTeamMember).not.toHaveBeenCalled();
+  });
+
+  it("resends a pending invitation and activates a valid one-time setup token", async () => {
+    dbMocks.getTeamMemberById.mockResolvedValue({ id: 22, name: "Pending Member", email: "pending@example.com", invitationStatus: "pending", userId: 7 });
+    const administratorCaller = appRouter.createCaller({ ...context({ ...user, role: "admin" as const }), req: { protocol: "https", headers: { host: "hub.example.com" } } as any });
+    await expect(administratorCaller.operations.teamMembers.resendInvitation({ id: 22 })).resolves.toEqual({ success: true });
+    expect(dbMocks.createInvitationToken).toHaveBeenCalledWith(expect.objectContaining({ teamMemberId: 22 }));
+
+    dbMocks.getInvitationToken.mockResolvedValue({ token: "valid-token-123456789012345", teamMemberId: 22, userId: 7, email: "pending@example.com", name: "Pending Member", expiresAt: new Date(Date.now() + 1000 * 60 * 60), usedAt: null });
+    const setupResponse = { cookie: vi.fn(), clearCookie: vi.fn() } as unknown as TrpcContext["res"];
+    const setupCaller = appRouter.createCaller({ ...context(), res: setupResponse });
+    await expect(setupCaller.auth.setupPassword({ token: "valid-token-123456789012345", password: "new-secure-password" })).resolves.toEqual({ success: true });
+    expect(dbMocks.updateUserPassword).toHaveBeenCalledWith(7, expect.any(String));
+    expect(dbMocks.updateTeamMember).toHaveBeenCalledWith(22, expect.objectContaining({ invitationStatus: "accepted", status: "active" }));
+    expect(dbMocks.markInvitationTokenUsed).toHaveBeenCalledWith("valid-token-123456789012345");
+
+    const configuredPasswordHash = dbMocks.updateUserPassword.mock.calls.at(-1)?.[1];
+    dbMocks.getUserByEmail.mockResolvedValue({ ...user, email: "pending@example.com", password: configuredPasswordHash });
+    const loginResponse = { cookie: vi.fn(), clearCookie: vi.fn() } as unknown as TrpcContext["res"];
+    const memberCaller = appRouter.createCaller({ ...context(), res: loginResponse });
+    await expect(memberCaller.auth.login({ email: "pending@example.com", password: "new-secure-password" })).resolves.toEqual({ success: true });
+    expect(dbMocks.createSession).toHaveBeenCalledWith(expect.objectContaining({ userId: 7 }));
+  });
+
+  it("rejects an expired invitation without changing the account", async () => {
+    dbMocks.getInvitationToken.mockResolvedValue({ token: "expired-token-123456789012345", teamMemberId: 22, userId: 7, email: "pending@example.com", name: "Pending Member", expiresAt: new Date(Date.now() - 1000), usedAt: null });
+    const caller = appRouter.createCaller(context());
+    await expect(caller.auth.setupPassword({ token: "expired-token-123456789012345", password: "new-secure-password" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.updateUserPassword).not.toHaveBeenCalled();
   });
 
   it("creates a 30-day session record for a user", async () => {

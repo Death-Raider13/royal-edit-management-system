@@ -26,9 +26,21 @@ export const teamMembers = sqliteTable("teamMembers", {
   name: text("name").notNull(),
   role: text("role").notNull(),
   email: text("email").notNull().unique(),
+  userId: integer("userId").references(() => users.id, { onDelete: "set null" }),
   status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
+  invitationStatus: text("invitationStatus", { enum: ["pending", "accepted", "revoked"] }).notNull().default("pending"),
+  invitationSentAt: integer("invitationSentAt", { mode: "timestamp_ms" }),
+  invitationAcceptedAt: integer("invitationAcceptedAt", { mode: "timestamp_ms" }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
+});
+
+export const invitationTokens = sqliteTable("invitationTokens", {
+  token: text("token").primaryKey(),
+  teamMemberId: integer("teamMemberId").notNull().references(() => teamMembers.id, { onDelete: "cascade" }),
+  expiresAt: integer("expiresAt", { mode: "timestamp_ms" }).notNull(),
+  usedAt: integer("usedAt", { mode: "timestamp_ms" }),
+  createdAt: createdAt(),
 });
 
 export const clients = sqliteTable("clients", {
@@ -91,6 +103,7 @@ export type Session = typeof sessions.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type InsertSession = typeof sessions.$inferInsert;
 export type InsertTeamMember = typeof teamMembers.$inferInsert;
+export type InsertInvitationToken = typeof invitationTokens.$inferInsert;
 export type InsertClient = typeof clients.$inferInsert;
 export type InsertProject = typeof projects.$inferInsert;
 export type InsertTask = typeof tasks.$inferInsert;

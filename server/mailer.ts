@@ -80,3 +80,14 @@ export async function verifyMailTransport() {
   await transport.verify();
   return true;
 }
+
+export async function sendTeamInvitationEmail(input: {
+  recipientName: string;
+  recipientEmail: string;
+  inviteUrl: string;
+}) {
+  const subject = "You are invited to the Royal Edit Operations Hub";
+  const text = `Hello ${input.recipientName},\n\nAn administrator has invited you to join the Royal Edit Operations Hub. Set your password using this one-time link:\n\n${input.inviteUrl}\n\nThe link expires in 48 hours.\n`;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:620px;color:#25211b"><p style="color:#8b6f2e;letter-spacing:.12em;text-transform:uppercase;font-size:12px">Royal Edit Media House</p><h1 style="font-family:Georgia,serif;font-weight:400">You are invited</h1><p>Hello ${escapeHtml(input.recipientName)},</p><p>An administrator has invited you to join the Royal Edit Operations Hub.</p><p><a href="${escapeHtml(input.inviteUrl)}" style="display:inline-block;background:#c9a84c;color:#080808;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:600">Set your password</a></p><p style="color:#6b6256;font-size:13px">This one-time link expires in 48 hours.</p></div>`;
+  await transport.sendMail({ from: process.env.SMTP_FROM || process.env.FROM_EMAIL, to: input.recipientEmail, subject, text, html });
+}

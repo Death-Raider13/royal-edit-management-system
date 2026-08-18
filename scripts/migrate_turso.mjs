@@ -7,10 +7,7 @@ if (!url || !authToken) throw new Error("TURSO_DATABASE_URL and TURSO_AUTH_TOKEN
 const client = createClient({ url, authToken });
 const statements = [
   `PRAGMA foreign_keys = ON`,
-  // Drop old users table (no real users — fresh start)
-  `DROP TABLE IF EXISTS sessions`,
-  `DROP TABLE IF EXISTS users`,
-  // Recreate with new schema
+  // Create missing core tables without deleting existing accounts or sessions.
   `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, password TEXT NOT NULL, name TEXT, role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin')), createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), lastSignedIn INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
   `CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expiresAt INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS teamMembers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, role TEXT NOT NULL, email TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')), createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,

@@ -10,7 +10,7 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "node scripts/migrate_turso.mjs"
+    "db:push": "node scripts/migrate_turso.mjs && node scripts/migrate_invitations.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

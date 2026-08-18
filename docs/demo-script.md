@@ -2,7 +2,7 @@
 
 Start from the **Overview** page and frame the application as a single operational source of truth for the agency. Explain that the dashboard makes staff, clients, active projects, overdue tasks, and recent work visible immediately.
 
-Sign in as the existing **Administrator**, then open **Team** and add a team member. Explain that staff records carry the name, role, email, and availability state needed for informed task assignment. Only the Administrator can manage staff, clients, projects, tasks, and reports; general users only work on tasks assigned to them.
+Sign in as the existing **Administrator**, then open **Team** and add a team member. Explain that staff records carry the name, role, email, and availability state needed for informed task assignment. The system also creates the linked General User account and sends a one-time password-setup email, so the new member activates access through the invitation rather than guessing a password or creating a disconnected account. Only the Administrator can manage staff, clients, projects, tasks, and reports; general users only work on tasks assigned to them.
 
 Open **Clients** and add a client organisation with a primary contact. Then open **Projects**, create a project for that client, and set a planned deadline. Open **Tasks**, create a task, set its priority and deadline, and assign it to the team member. Point out that the system creates both an in-app notification and an email automatically at the moment of assignment; no separate reminder action is needed.
 

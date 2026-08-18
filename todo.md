@@ -40,3 +40,10 @@
 - [x] Add a successful-login test covering password verification, last-signed-in update, session creation, and session-cookie creation.
 - [x] Add an authenticated protected-context test beyond logout for the standard session flow.
 - [x] Add a test that exercises a protected operations procedure with a valid session-backed authenticated context.
+- [x] Link team-member records to authenticated user accounts with invitation status.
+- [x] Add one-time, expiring invitation-token persistence in Turso.
+- [x] Send administrator-created member invitations through Nodemailer with a password-setup link.
+- [x] Add password-setup and invitation-resend procedures with secure token validation.
+- [x] Add invitation status and resend controls to the administrator Team screen.
+- [x] Test member invitation, password setup, expiry, duplicate email, resend, and subsequent login flows.
+- [x] Update documentation, save a checkpoint, and push the invitation flow to GitHub.

@@ -53,7 +53,7 @@ flowchart LR
   DB --> Dashboard[Dashboard, lists, reports]
 ```
 
-The frontend uses typed procedures rather than a manually maintained REST client. Each create or update action flows through server-side validation, then a database helper, before refreshing the relevant interface records. The system records activity entries for important events such as creating records, updating a status, or assigning a task.
+The frontend uses typed procedures rather than a manually maintained REST client. Each create or update action flows through server-side validation, then a database helper, before refreshing the relevant interface records. The system records activity entries for important events such as creating records, updating a status, or assigning a task. General-user task and notification queries scope through the authenticated `users.id` linked from `teamMembers.userId`; email remains contact data, not an authorization key.
 
 The task-assignment workflow is automatic. When a task is created with an assignee, or when an existing task’s assignee changes, the server builds a notification message from the current task and project records, stores it against the assigned team member, and writes the corresponding activity item. No manual notification action is required.
 
@@ -61,7 +61,7 @@ The task-assignment workflow is automatic. When a task is created with an assign
 
 | Table | Purpose | Key relationships |
 |---|---|---|
-| `teamMembers` | Staff directory and assignment recipients | Referenced by `tasks` and `notifications` |
+| `teamMembers` | Staff directory, assignment recipients, and invitation status | Linked to `users`; referenced by `tasks` and `notifications` |
 | `clients` | Client organisation and contact details | Referenced by `projects` |
 | `projects` | Client delivery engagements | References `clients`; referenced by `tasks` |
 | `tasks` | Individual actions and ownership | References `projects` and optionally `teamMembers` |
@@ -76,7 +76,7 @@ The task-assignment workflow is automatic. When a task is created with an assign
 | UI system | Existing accessible component primitives with custom Royal Edit styling | Preserves keyboard-friendly interaction patterns while applying the brand system consistently. |
 | Backend | Express and tRPC | Keeps client-server contracts typed end-to-end and reduces duplicated API definitions. |
 | Database layer | Drizzle ORM with Turso/libSQL | Preserves the SQL relational model while moving persistence to the user-owned Turso database. |
-| Authentication | Turso-backed email/password sessions with bcryptjs | Keeps credentials and session records in the user-owned Turso database without Manus OAuth. |
+| Authentication | Turso-backed email/password sessions with bcryptjs | Keeps credentials and session records in the user-owned Turso database without Manus OAuth. Team invitations link staff records to login accounts. |
 | Automation | Python 3 + ReportLab invoked by the server | Creates branded PDF reports from structured project data. |
 | Email delivery | Nodemailer over the supplied Gmail SMTP configuration | Sends assignment and reassignment messages directly to team-member email addresses. |
 | Deployment runtime | Node 22 with Python 3 and ReportLab available in a Docker image | Allows the PDF generator to run in production as part of an on-demand request. |
@@ -89,7 +89,7 @@ Cormorant Garamond is used for editorial display language, DM Sans supports body
 
 ## 8. How to run locally
 
-The project uses the user-owned Turso database and standard email/password authentication. No OAuth provider is required, and no credentials should be committed to source control. Configure `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `JWT_SECRET`, and the SMTP variables used by Nodemailer (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `FROM_EMAIL`).
+The project uses the user-owned Turso database and standard email/password authentication. No OAuth provider is required, and no credentials should be committed to source control. Configure `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `JWT_SECRET`, and the SMTP variables used by Nodemailer (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `FROM_EMAIL`). The idempotent `pnpm db:push` command applies both the core schema and the invitation-account migration without dropping existing users or sessions.
 
 | Command | Purpose |
 |---|---|
@@ -102,7 +102,9 @@ The project uses the user-owned Turso database and standard email/password authe
 
 ### Authentication and administrator bootstrap
 
-Registration creates a General User account by default. Passwords are hashed with bcryptjs before they are stored. Login creates a 30-day session record in Turso and sets an HTTP-only session cookie; active sessions are refreshed when they approach expiry, while expired sessions are deleted. The first administrator is created through the existing administrator bootstrap process. After that, only an Administrator should promote or manage other user accounts. The server enforces the role on every protected procedure; hiding interface controls is only an additional usability layer.
+Registration creates a General User account by default. Passwords are hashed with bcryptjs before they are stored. Login creates a 30-day session record in Turso and sets an HTTP-only session cookie; active sessions are refreshed when they approach expiry, while expired sessions are deleted. The first administrator is created through the existing administrator bootstrap process. After that, only an Administrator should manage other user accounts.
+
+When an Administrator adds a team member, the server creates the linked General User account with an unusable temporary password, creates a cryptographically random invitation token that expires after 48 hours, and sends a Nodemailer email containing a one-time `/setup-password` link. The invited member chooses their password through that route. On successful setup, the token is consumed, the team record is marked accepted and active, and a normal session is created immediately. Administrators can resend pending invitations. Duplicate emails are rejected so one person cannot accidentally receive disconnected team and login records. The server enforces the role and invitation state on every protected procedure; hiding interface controls is only an additional usability layer.
 
 ### Suggested product walkthrough
 
@@ -122,7 +124,7 @@ The implementation includes a TypeScript check, a production build, unit tests, 
 | Check | Result |
 |---|---|
 | TypeScript validation | Passed with `pnpm check`. |
-| Unit tests | Passed: logout, input validation, task notification context, project-summary calculations, and PDF payload generation. |
+| Unit tests | Passed: 23 tests covering logout, invitation/password setup, input validation, permissions, Turso connectivity, task notification context, project-summary calculations, and PDF payload generation. |
 | Turso read-only query | Passed against the supplied database URL and token. |
 | Gmail SMTP transport | Nodemailer transport authentication passed without sending a test email. |
 | Python PDF generation | Passed with a representative project payload and PDF assertion. |
@@ -141,9 +143,9 @@ The prototype establishes the foundation for a larger internal platform. The nex
 
 | Area | Recommended improvement |
 |---|---|
-| Authentication and access | Keep the two-role model: Administrator manages operational records and General User works only on assigned tasks. Add audit visibility for role changes. |
+| Authentication and access | Keep the two-role model: Administrator manages operational records and General User works only on assigned tasks. Add audit visibility for role changes and invitation resend/expiry events. |
 | Email notifications | Add delivery retries, bounce handling, and provider monitoring around the current Nodemailer SMTP integration. |
-| Per-person inbox | Restrict notification viewing so a member sees only their own alerts, while managers retain an oversight view. |
+| Per-person inbox | The current implementation restricts notification viewing to the linked authenticated user ID, while Administrators retain an oversight view. |
 | Project detail pages | Add dedicated project and task detail routes with timelines, comments, attachments, and change history. |
 | File handling | Store project briefs, deliverables, and approval files in object storage, saving only metadata in the database. |
 | Reporting | Add scheduled weekly reports, report history, richer PDF layouts, and workload analytics. |

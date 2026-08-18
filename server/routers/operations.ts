@@ -4,7 +4,8 @@ import * as db from "../db";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { buildProjectReportPayload, calculateProjectSummary, generateReportWithPython } from "../reporting";
 import { buildAssignmentNotification } from "../workflow";
-import { sendTaskAssignmentEmail } from "../mailer";
+import { sendTaskAssignmentEmail, sendTeamInvitationEmail } from "../mailer";
+import { hashPassword } from "../_core/auth";
 
 const projectStatus = z.enum(["planned", "in_progress", "on_hold", "completed", "cancelled"]);
 const taskStatus = z.enum(["not_started", "in_progress", "blocked", "completed"]);
@@ -93,14 +94,38 @@ export const operationsRouter = router({
 
   teamMembers: router({
     list: adminProcedure.query(() => db.listTeamMembers()),
-    create: adminProcedure.input(teamMemberInput).mutation(async ({ input }) => {
-      const id = await db.createTeamMember(input);
-      await logActivity("team_member", id, "created", `${input.name} joined the team as ${input.role}.`);
-      return { id };
+    create: adminProcedure.input(teamMemberInput).mutation(async ({ input, ctx }) => {
+      const existingUser = await db.getUserByEmail(input.email);
+      if (existingUser) throw new TRPCError({ code: "CONFLICT", message: "A login account already exists for this email. Ask the member to use their existing account or a different email." });
+      const userId = await db.createUser({ email: input.email, password: await hashPassword(crypto.randomUUID()), name: input.name, role: "user", lastSignedIn: new Date() });
+      const sentAt = new Date();
+      const id = await db.createTeamMember({ ...input, userId, invitationStatus: "pending", invitationSentAt: sentAt });
+      const token = crypto.randomUUID();
+      await db.createInvitationToken({ token, teamMemberId: id, expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48) });
+      const origin = `${ctx.req.protocol}://${ctx.req.headers.host ?? "localhost:3000"}`;
+      try {
+        await sendTeamInvitationEmail({ recipientName: input.name, recipientEmail: input.email, inviteUrl: `${origin}/setup-password?token=${encodeURIComponent(token)}` });
+      } catch (error) {
+        console.warn("[Mailer] Team invitation could not be sent; use resend invitation.", error);
+      }
+      await logActivity("team_member", id, "invited", `${input.name} was added and invited to the Royal Edit workspace.`);
+      return { id, invited: true };
     }),
     update: adminProcedure.input(z.object({ id: z.number().int().positive(), values: teamMemberInput })).mutation(async ({ input }) => {
       await db.updateTeamMember(input.id, input.values);
       await logActivity("team_member", input.id, "updated", `${input.values.name}'s team record was updated.`);
+      return { success: true };
+    }),
+    resendInvitation: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      const member = await db.getTeamMemberById(input.id);
+      if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "Team member not found." });
+      if (member.invitationStatus === "accepted") throw new TRPCError({ code: "CONFLICT", message: "This team member has already accepted the invitation." });
+      const token = crypto.randomUUID();
+      await db.createInvitationToken({ token, teamMemberId: member.id, expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48) });
+      await db.updateTeamMember(member.id, { invitationStatus: "pending", invitationSentAt: new Date() });
+      const origin = `${ctx.req.protocol}://${ctx.req.headers.host ?? "localhost:3000"}`;
+      await sendTeamInvitationEmail({ recipientName: member.name, recipientEmail: member.email, inviteUrl: `${origin}/setup-password?token=${encodeURIComponent(token)}` });
+      await logActivity("team_member", member.id, "invitation_resent", `A new workspace invitation was sent to ${member.name}.`);
       return { success: true };
     }),
   }),
@@ -141,7 +166,7 @@ export const operationsRouter = router({
   }),
 
   tasks: router({
-    list: protectedProcedure.query(({ ctx }) => db.listTasks(ctx.user.role === "admin" ? null : ctx.user.email)),
+    list: protectedProcedure.query(({ ctx }) => db.listTasks(ctx.user.role === "admin" ? null : ctx.user.id)),
     create: adminProcedure.input(taskInput).mutation(async ({ input }) => {
       const id = await db.createTask(input);
       await logActivity("task", id, "created", `${input.title} was created.`);
@@ -160,7 +185,7 @@ export const operationsRouter = router({
       return { success: true };
     }),
     updateStatus: protectedProcedure.input(z.object({ id: z.number().int().positive(), status: taskStatus })).mutation(async ({ input, ctx }) => {
-      const task = await db.getTaskWithDetails(input.id, ctx.user.role === "admin" ? null : ctx.user.email);
+      const task = await db.getTaskWithDetails(input.id, ctx.user.role === "admin" ? null : ctx.user.id);
       if (!task) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you." });
       await db.updateTask(input.id, { status: input.status });
       await logActivity("task", input.id, "status_updated", `Task status changed to ${input.status.replace("_", " ")}.`);
@@ -169,9 +194,9 @@ export const operationsRouter = router({
   }),
 
   notifications: router({
-    list: protectedProcedure.query(({ ctx }) => db.listNotifications(ctx.user.role === "admin" ? null : ctx.user.email)),
+    list: protectedProcedure.query(({ ctx }) => db.listNotifications(ctx.user.role === "admin" ? null : ctx.user.id)),
     markRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
-      await db.markNotificationRead(input.id, ctx.user.role === "admin" ? null : ctx.user.email);
+      await db.markNotificationRead(input.id, ctx.user.role === "admin" ? null : ctx.user.id);
       return { success: true };
     }),
   }),
