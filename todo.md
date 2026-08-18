@@ -36,7 +36,7 @@
 - [x] Update the role and permissions documentation; GitHub push remains the final handover step.
 - [x] Add comprehensive authentication tests for registration, login success and failure, password verification, protected access, and session expiry/refresh.
 - [x] Document the Turso-backed email/password authentication flow, required environment variables, and administrator bootstrap process.
-- [ ] Commit and push the local authentication fixes, including bcryptjs and related corrections, to Death-raider13/royal-edit-management-system and verify the remote branch.
+- [x] Commit and push the local authentication fixes, including bcryptjs and related corrections, to Death-raider13/royal-edit-management-system and verify the remote branch.
 - [x] Add a successful-login test covering password verification, last-signed-in update, session creation, and session-cookie creation.
 - [x] Add an authenticated protected-context test beyond logout for the standard session flow.
 - [x] Add a test that exercises a protected operations procedure with a valid session-backed authenticated context.
