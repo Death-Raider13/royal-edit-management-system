@@ -47,3 +47,10 @@
 - [x] Add invitation status and resend controls to the administrator Team screen.
 - [x] Test member invitation, password setup, expiry, duplicate email, resend, and subsequent login flows.
 - [x] Update documentation, save a checkpoint, and push the invitation flow to GitHub.
+- [x] Notify administrators when a general user changes an assigned task status.
+- [x] Add readable progress messages for started, blocked, nearly complete/in progress, and completed states.
+- [x] Add regression tests for manager progress notifications and preserve existing assignment notifications.
+- [x] Update documentation and save a checkpoint for manager progress notifications.
+- [x] Scope administrator notification read actions so IDs cannot collide with team-member notification IDs.
+- [x] Add a distinct near-complete progress signal separate from generic in-progress.
+- [x] Save a new checkpoint after hardening manager progress notifications.

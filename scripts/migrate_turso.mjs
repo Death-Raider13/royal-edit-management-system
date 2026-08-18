@@ -16,15 +16,17 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, projectId INTEGER NOT NULL REFERENCES projects(id), assignedMemberId INTEGER REFERENCES teamMembers(id), title TEXT NOT NULL, description TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high')), deadline INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'not_started' CHECK (status IN ('not_started','in_progress','blocked','completed')), createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000), updatedAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
   `CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, recipientMemberId INTEGER NOT NULL REFERENCES teamMembers(id), taskId INTEGER REFERENCES tasks(id), title TEXT NOT NULL, content TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('task_assigned','task_reassigned','system')), readAt INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
   `CREATE TABLE IF NOT EXISTS activityLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, entityType TEXT NOT NULL, entityId INTEGER NOT NULL, action TEXT NOT NULL, description TEXT NOT NULL, createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
+  `CREATE TABLE IF NOT EXISTS adminNotifications (id INTEGER PRIMARY KEY AUTOINCREMENT, recipientUserId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, taskId INTEGER REFERENCES tasks(id), title TEXT NOT NULL, content TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'task_progress', readAt INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))`,
   `CREATE INDEX IF NOT EXISTS projects_clientId_idx ON projects(clientId)`,
   `CREATE INDEX IF NOT EXISTS tasks_projectId_idx ON tasks(projectId)`,
   `CREATE INDEX IF NOT EXISTS tasks_assignedMemberId_idx ON tasks(assignedMemberId)`,
   `CREATE INDEX IF NOT EXISTS notifications_recipientMemberId_idx ON notifications(recipientMemberId)`,
   `CREATE INDEX IF NOT EXISTS activityLogs_createdAt_idx ON activityLogs(createdAt)`,
+  `CREATE INDEX IF NOT EXISTS adminNotifications_recipientUserId_idx ON adminNotifications(recipientUserId)`,
   `CREATE INDEX IF NOT EXISTS sessions_userId_idx ON sessions(userId)`,
 ];
 
 await client.batch(statements.map((sql) => ({ sql })), "write");
-const result = await client.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users','sessions','teamMembers','clients','projects','tasks','notifications','activityLogs') ORDER BY name");
+const result = await client.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users','sessions','teamMembers','clients','projects','tasks','notifications','adminNotifications','activityLogs') ORDER BY name");
 console.log(JSON.stringify({ tables: result.rows.map((row) => row.name) }));
 client.close();

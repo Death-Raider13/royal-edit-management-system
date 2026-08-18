@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildProjectReportPayload, calculateProjectSummary, generateReportWithPython } from "./reporting";
-import { buildAssignmentNotification } from "./workflow";
+import { buildAssignmentNotification, buildTaskProgressNotification } from "./workflow";
 
 describe("assignment notification workflow", () => {
   it("includes the required task, project, priority, and deadline context", () => {
@@ -10,6 +10,22 @@ describe("assignment notification workflow", () => {
     expect(result.content).toContain("Northstar Campaign");
     expect(result.content).toContain("HIGH priority");
     expect(result.content).toMatch(/15 Sept 2026/);
+  });
+});
+
+describe("manager progress notification workflow", () => {
+  it.each([
+    ["in_progress", "started working", "Task progress update: work has started"],
+    ["almost_done", "almost done", "Task progress update: almost complete"],
+    ["blocked", "blocked", "Task progress update: blocked"],
+    ["completed", "completed", "Task progress update: completed"],
+  ] as const)("describes a %s update clearly", (status, phrase, title) => {
+    const result = buildTaskProgressNotification({ taskTitle: "Final colour grading", projectName: "Northstar Campaign", memberName: "Ama", status });
+    expect(result.type).toBe("system");
+    expect(result.title).toBe(title);
+    expect(result.content).toContain("Final colour grading");
+    expect(result.content).toContain("Northstar Campaign");
+    expect(result.content).toContain(phrase);
   });
 });
 

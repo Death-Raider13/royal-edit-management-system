@@ -32,7 +32,7 @@ Creative and media teams often operate across fragmented messages, spreadsheets,
 | Clients | Adds, edits, and views organisations with a primary contact, email, and phone number. |
 | Projects | Creates, edits, views, and updates status inline for client-linked projects. |
 | Tasks | Creates, edits, views, assigns, reassigns, and updates task status inline. |
-| Notifications | Records automatic in-app task-assignment and reassignment notifications. Each includes task title, project name, priority, and deadline. |
+| Notifications | Records assignment, reassignment, and administrator-facing task-progress notifications. Progress messages identify when work starts, becomes blocked, or is completed. |
 | Reports | Calculates status counts, completion percentage, overdue items, and contributors for a selected project. |
 | Python automation | Produces a branded PDF project report on demand. |
 | Email delivery | Nodemailer sends assignment and reassignment emails directly to the assigned member’s stored email address. |
@@ -55,7 +55,7 @@ flowchart LR
 
 The frontend uses typed procedures rather than a manually maintained REST client. Each create or update action flows through server-side validation, then a database helper, before refreshing the relevant interface records. The system records activity entries for important events such as creating records, updating a status, or assigning a task. General-user task and notification queries scope through the authenticated `users.id` linked from `teamMembers.userId`; email remains contact data, not an authorization key.
 
-The task-assignment workflow is automatic. When a task is created with an assignee, or when an existing task’s assignee changes, the server builds a notification message from the current task and project records, stores it against the assigned team member, and writes the corresponding activity item. No manual notification action is required.
+The task-assignment workflow is automatic. When a task is created with an assignee, or when an existing task’s assignee changes, the server builds a notification message from the current task and project records, stores it against the assigned team member, and writes the corresponding activity item. When a General User changes an assigned task’s status, the server creates an administrator notification for every current Administrator. The message distinguishes started, blocked, completed, and returned-to-not-started states. Members can also send a separate **Almost done** update while a task is in progress; this alerts administrators without changing the task lifecycle status. Notification read actions carry a source discriminator so administrator and team-member notification IDs cannot collide.
 
 ## 5. Data model
 
@@ -65,7 +65,8 @@ The task-assignment workflow is automatic. When a task is created with an assign
 | `clients` | Client organisation and contact details | Referenced by `projects` |
 | `projects` | Client delivery engagements | References `clients`; referenced by `tasks` |
 | `tasks` | Individual actions and ownership | References `projects` and optionally `teamMembers` |
-| `notifications` | In-app assignment messages | References `teamMembers` and optionally `tasks` |
+| `notifications` | In-app assignment and reassignment messages | References `teamMembers` and optionally `tasks` |
+| `adminNotifications` | Administrator-facing task-progress messages | References `users` and optionally `tasks` |
 | `activityLogs` | Recent operational events | Stores entity type, action, and a concise description |
 
 ## 6. Technology choices
@@ -124,7 +125,7 @@ The implementation includes a TypeScript check, a production build, unit tests, 
 | Check | Result |
 |---|---|
 | TypeScript validation | Passed with `pnpm check`. |
-| Unit tests | Passed: 23 tests covering logout, invitation/password setup, input validation, permissions, Turso connectivity, task notification context, project-summary calculations, and PDF payload generation. |
+| Unit tests | Passed: 29 tests covering logout, invitation/password setup, input validation, permissions, Turso connectivity, task assignment and progress notification context, project-summary calculations, and PDF payload generation. |
 | Turso read-only query | Passed against the supplied database URL and token. |
 | Gmail SMTP transport | Nodemailer transport authentication passed without sending a test email. |
 | Python PDF generation | Passed with a representative project payload and PDF assertion. |

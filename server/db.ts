@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient as createLibsqlClient } from "@libsql/client";
 import {
   activityLogs,
+  adminNotifications,
   clients,
   InsertClient,
   InsertProject,
@@ -94,6 +95,11 @@ export async function getUserById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   return (await db.select().from(users).where(eq(users.id, id)).limit(1))[0];
+}
+
+export async function listAdminUsers() {
+  const db = await requireDb();
+  return db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.role, "admin"));
 }
 
 export async function updateUserLastSignedIn(id: number) {
@@ -239,17 +245,34 @@ export async function createNotification(input: { recipientMemberId: number; tas
   await db.insert(notifications).values(input);
 }
 
-export async function listNotifications(memberUserId?: number | null) {
+export async function createAdminNotification(input: { recipientUserId: number; taskId: number; title: string; content: string; type: "task_progress" | "system" }) {
   const db = await requireDb();
-  const query = db.select({ ...notificationFields, recipientName: teamMembers.name, recipientEmail: teamMembers.email }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id));
-  return memberUserId ? query.where(eq(teamMembers.userId, memberUserId)).orderBy(desc(notifications.createdAt)) : query.orderBy(desc(notifications.createdAt));
+  await db.insert(adminNotifications).values(input);
 }
 
-export async function markNotificationRead(id: number, memberUserId?: number | null) {
+export async function listNotifications(memberUserId?: number | null) {
   const db = await requireDb();
+  const memberQuery = db.select({ ...notificationFields, source: sql<"member">`'member'`, recipientName: teamMembers.name, recipientEmail: teamMembers.email }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id));
+  if (memberUserId) return memberQuery.where(eq(teamMembers.userId, memberUserId)).orderBy(desc(notifications.createdAt));
+
+  const [memberRows, adminRows] = await Promise.all([
+    memberQuery.orderBy(desc(notifications.createdAt)),
+    db.select({ id: adminNotifications.id, recipientMemberId: sql<number | null>`NULL`, taskId: adminNotifications.taskId, title: adminNotifications.title, content: adminNotifications.content, type: adminNotifications.type, readAt: adminNotifications.readAt, createdAt: adminNotifications.createdAt, recipientName: users.name, recipientEmail: users.email, source: sql<"admin">`'admin'` }).from(adminNotifications).innerJoin(users, eq(adminNotifications.recipientUserId, users.id)).orderBy(desc(adminNotifications.createdAt)),
+  ]);
+  return [...memberRows, ...adminRows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function markNotificationRead(id: number, source: "member" | "admin", memberUserId?: number | null) {
+  const db = await requireDb();
+  if (source === "admin") {
+    if (memberUserId) return;
+    await db.update(adminNotifications).set({ readAt: new Date() }).where(eq(adminNotifications.id, id));
+    return;
+  }
   if (memberUserId) {
     const owned = await db.select({ id: notifications.id }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id)).where(and(eq(notifications.id, id), eq(teamMembers.userId, memberUserId))).limit(1);
-    if (!owned[0]) return;
+    if (owned[0]) await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id));
+    return;
   }
   await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id));
 }

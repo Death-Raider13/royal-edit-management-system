@@ -17,6 +17,8 @@ statements.push("UPDATE teamMembers SET invitationStatus = 'pending' WHERE invit
 statements.push("CREATE TABLE IF NOT EXISTS invitationTokens (token TEXT PRIMARY KEY NOT NULL, teamMemberId INTEGER NOT NULL REFERENCES teamMembers(id) ON DELETE CASCADE, expiresAt INTEGER NOT NULL, usedAt INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))");
 statements.push("CREATE INDEX IF NOT EXISTS invitationTokens_teamMemberId_idx ON invitationTokens(teamMemberId)");
 statements.push("CREATE INDEX IF NOT EXISTS teamMembers_userId_idx ON teamMembers(userId)");
+statements.push("CREATE TABLE IF NOT EXISTS adminNotifications (id INTEGER PRIMARY KEY AUTOINCREMENT, recipientUserId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, taskId INTEGER REFERENCES tasks(id), title TEXT NOT NULL, content TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'task_progress', readAt INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch() * 1000))");
+statements.push("CREATE INDEX IF NOT EXISTS adminNotifications_recipientUserId_idx ON adminNotifications(recipientUserId)");
 await client.batch(statements.map((sql) => ({ sql })), "write");
 const verify = await client.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'invitationTokens'");
 console.log(JSON.stringify({ applied: statements.length, invitationTokens: verify.rows.length === 1 }));

@@ -3,7 +3,7 @@ import { z } from "zod";
 import * as db from "../db";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { buildProjectReportPayload, calculateProjectSummary, generateReportWithPython } from "../reporting";
-import { buildAssignmentNotification } from "../workflow";
+import { buildAssignmentNotification, buildTaskProgressNotification } from "../workflow";
 import { sendTaskAssignmentEmail, sendTeamInvitationEmail } from "../mailer";
 import { hashPassword } from "../_core/auth";
 
@@ -49,6 +49,20 @@ function assertValidSchedule(startDate: Date, deadline: Date) {
 
 async function logActivity(entityType: string, entityId: number, action: string, description: string) {
   await db.createActivityLog({ entityType, entityId, action, description });
+}
+
+async function sendTaskProgressNotification(taskId: number, status: "not_started" | "in_progress" | "almost_done" | "blocked" | "completed") {
+  const task = await db.getTaskWithDetails(taskId);
+  if (!task?.assignedMemberId) return;
+  const admins = await db.listAdminUsers();
+  const notification = buildTaskProgressNotification({
+    taskTitle: String(task.title),
+    projectName: String(task.projectName),
+    memberName: String(task.assignedMemberName ?? "A team member"),
+    status,
+  });
+  await Promise.all(admins.map((admin) => db.createAdminNotification({ recipientUserId: admin.id, taskId, ...notification })));
+  await logActivity("task", taskId, "progress_updated", notification.content);
 }
 
 async function sendAssignmentNotification(taskId: number, previousMemberId?: number | null) {
@@ -187,16 +201,26 @@ export const operationsRouter = router({
     updateStatus: protectedProcedure.input(z.object({ id: z.number().int().positive(), status: taskStatus })).mutation(async ({ input, ctx }) => {
       const task = await db.getTaskWithDetails(input.id, ctx.user.role === "admin" ? null : ctx.user.id);
       if (!task) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you." });
+      const statusChanged = task.status !== input.status;
       await db.updateTask(input.id, { status: input.status });
       await logActivity("task", input.id, "status_updated", `Task status changed to ${input.status.replace("_", " ")}.`);
+      if (ctx.user.role !== "admin" && statusChanged) await sendTaskProgressNotification(input.id, input.status);
+      return { success: true };
+    }),
+    markAlmostDone: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      if (ctx.user.role === "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Only assigned team members can send a near-complete update." });
+      const task = await db.getTaskWithDetails(input.id, ctx.user.id);
+      if (!task) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you." });
+      if (task.status !== "in_progress") throw new TRPCError({ code: "BAD_REQUEST", message: "Mark the task in progress before sending an almost-complete update." });
+      await sendTaskProgressNotification(input.id, "almost_done");
       return { success: true };
     }),
   }),
 
   notifications: router({
     list: protectedProcedure.query(({ ctx }) => db.listNotifications(ctx.user.role === "admin" ? null : ctx.user.id)),
-    markRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
-      await db.markNotificationRead(input.id, ctx.user.role === "admin" ? null : ctx.user.id);
+    markRead: protectedProcedure.input(z.object({ id: z.number().int().positive(), source: z.enum(["member", "admin"]) })).mutation(async ({ input, ctx }) => {
+      await db.markNotificationRead(input.id, input.source, ctx.user.role === "admin" ? null : ctx.user.id);
       return { success: true };
     }),
   }),

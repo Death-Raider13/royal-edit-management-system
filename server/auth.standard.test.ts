@@ -14,6 +14,10 @@ const dbMocks = vi.hoisted(() => ({
   createInvitationToken: vi.fn().mockResolvedValue(undefined),
   getTeamMemberById: vi.fn(),
   updateTeamMember: vi.fn().mockResolvedValue(undefined),
+  getTaskWithDetails: vi.fn(),
+  updateTask: vi.fn().mockResolvedValue(undefined),
+  listAdminUsers: vi.fn().mockResolvedValue([]),
+  createAdminNotification: vi.fn().mockResolvedValue(undefined),
   getInvitationToken: vi.fn(),
   markInvitationTokenUsed: vi.fn().mockResolvedValue(undefined),
   logActivity: vi.fn().mockResolvedValue(undefined),
@@ -169,6 +173,22 @@ describe("standard authentication", () => {
     const memberCaller = appRouter.createCaller({ ...context(), res: loginResponse });
     await expect(memberCaller.auth.login({ email: "pending@example.com", password: "new-secure-password" })).resolves.toEqual({ success: true });
     expect(dbMocks.createSession).toHaveBeenCalledWith(expect.objectContaining({ userId: 7 }));
+  });
+
+  it("notifies administrators when a general user starts an assigned task", async () => {
+    dbMocks.getTaskWithDetails.mockResolvedValue({ id: 22, assignedMemberId: 31, assignedMemberName: "Royal Edit Member", projectName: "Northstar Campaign", title: "Final colour grading", status: "not_started" });
+    dbMocks.listAdminUsers.mockResolvedValue([{ id: 1, name: "Manager", email: "manager@example.com" }]);
+    const memberCaller = appRouter.createCaller(context(user));
+    await expect(memberCaller.operations.tasks.updateStatus({ id: 22, status: "in_progress" })).resolves.toEqual({ success: true });
+    expect(dbMocks.createAdminNotification).toHaveBeenCalledWith(expect.objectContaining({ recipientUserId: 1, taskId: 22, title: "Task progress update: work has started" }));
+  });
+
+  it("allows an assigned member to send a distinct almost-complete manager update", async () => {
+    dbMocks.getTaskWithDetails.mockResolvedValue({ id: 22, assignedMemberId: 31, assignedMemberName: "Royal Edit Member", projectName: "Northstar Campaign", title: "Final colour grading", status: "in_progress" });
+    dbMocks.listAdminUsers.mockResolvedValue([{ id: 1, name: "Manager", email: "manager@example.com" }]);
+    const memberCaller = appRouter.createCaller(context(user));
+    await expect(memberCaller.operations.tasks.markAlmostDone({ id: 22 })).resolves.toEqual({ success: true });
+    expect(dbMocks.createAdminNotification).toHaveBeenCalledWith(expect.objectContaining({ recipientUserId: 1, taskId: 22, title: "Task progress update: almost complete" }));
   });
 
   it("rejects an expired invitation without changing the account", async () => {

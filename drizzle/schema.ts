@@ -89,6 +89,17 @@ export const notifications = sqliteTable("notifications", {
   createdAt: createdAt(),
 });
 
+export const adminNotifications = sqliteTable("adminNotifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  recipientUserId: integer("recipientUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  taskId: integer("taskId").references(() => tasks.id),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  type: text("type", { enum: ["task_progress", "system"] }).notNull().default("task_progress"),
+  readAt: integer("readAt", { mode: "timestamp_ms" }),
+  createdAt: createdAt(),
+});
+
 export const activityLogs = sqliteTable("activityLogs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   entityType: text("entityType").notNull(),
