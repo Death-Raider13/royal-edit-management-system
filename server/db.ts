@@ -182,14 +182,16 @@ export async function updateProject(id: number, input: Partial<InsertProject>) {
   await db.update(projects).set({ ...input, updatedAt: new Date() }).where(eq(projects.id, id));
 }
 
-export async function listTasks() {
+export async function listTasks(memberEmail?: string | null) {
   const db = await requireDb();
-  return db.select({ ...taskFields, projectName: projects.name, clientName: clients.organizationName, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).innerJoin(clients, eq(projects.clientId, clients.id)).leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id)).orderBy(desc(tasks.updatedAt));
+  const query = db.select({ ...taskFields, projectName: projects.name, clientName: clients.organizationName, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).innerJoin(clients, eq(projects.clientId, clients.id)).leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id));
+  return memberEmail ? query.where(eq(teamMembers.email, memberEmail)).orderBy(desc(tasks.updatedAt)) : query.orderBy(desc(tasks.updatedAt));
 }
 
-export async function getTaskWithDetails(id: number) {
+export async function getTaskWithDetails(id: number, memberEmail?: string | null) {
   const db = await requireDb();
-  return (await db.select({ ...taskFields, projectName: projects.name, clientName: clients.organizationName, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).innerJoin(clients, eq(projects.clientId, clients.id)).leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id)).where(eq(tasks.id, id)).limit(1))[0];
+  const conditions = memberEmail ? and(eq(tasks.id, id), eq(teamMembers.email, memberEmail)) : eq(tasks.id, id);
+  return (await db.select({ ...taskFields, projectName: projects.name, clientName: clients.organizationName, assignedMemberName: teamMembers.name, assignedMemberEmail: teamMembers.email }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).innerJoin(clients, eq(projects.clientId, clients.id)).leftJoin(teamMembers, eq(tasks.assignedMemberId, teamMembers.id)).where(conditions).limit(1))[0];
 }
 
 export async function createTask(input: InsertTask) {
@@ -208,13 +210,18 @@ export async function createNotification(input: { recipientMemberId: number; tas
   await db.insert(notifications).values(input);
 }
 
-export async function listNotifications() {
+export async function listNotifications(memberEmail?: string | null) {
   const db = await requireDb();
-  return db.select({ ...notificationFields, recipientName: teamMembers.name, recipientEmail: teamMembers.email }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id)).orderBy(desc(notifications.createdAt));
+  const query = db.select({ ...notificationFields, recipientName: teamMembers.name, recipientEmail: teamMembers.email }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id));
+  return memberEmail ? query.where(eq(teamMembers.email, memberEmail)).orderBy(desc(notifications.createdAt)) : query.orderBy(desc(notifications.createdAt));
 }
 
-export async function markNotificationRead(id: number) {
+export async function markNotificationRead(id: number, memberEmail?: string | null) {
   const db = await requireDb();
+  if (memberEmail) {
+    const owned = await db.select({ id: notifications.id }).from(notifications).innerJoin(teamMembers, eq(notifications.recipientMemberId, teamMembers.id)).where(and(eq(notifications.id, id), eq(teamMembers.email, memberEmail))).limit(1);
+    if (!owned[0]) return;
+  }
   await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id));
 }
 

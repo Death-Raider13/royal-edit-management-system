@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "../db";
-import { protectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { buildProjectReportPayload, calculateProjectSummary, generateReportWithPython } from "../reporting";
 import { buildAssignmentNotification } from "../workflow";
 import { sendTaskAssignmentEmail } from "../mailer";
@@ -92,13 +92,13 @@ export const operationsRouter = router({
   })),
 
   teamMembers: router({
-    list: protectedProcedure.query(() => db.listTeamMembers()),
-    create: protectedProcedure.input(teamMemberInput).mutation(async ({ input }) => {
+    list: adminProcedure.query(() => db.listTeamMembers()),
+    create: adminProcedure.input(teamMemberInput).mutation(async ({ input }) => {
       const id = await db.createTeamMember(input);
       await logActivity("team_member", id, "created", `${input.name} joined the team as ${input.role}.`);
       return { id };
     }),
-    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), values: teamMemberInput })).mutation(async ({ input }) => {
+    update: adminProcedure.input(z.object({ id: z.number().int().positive(), values: teamMemberInput })).mutation(async ({ input }) => {
       await db.updateTeamMember(input.id, input.values);
       await logActivity("team_member", input.id, "updated", `${input.values.name}'s team record was updated.`);
       return { success: true };
@@ -106,13 +106,13 @@ export const operationsRouter = router({
   }),
 
   clients: router({
-    list: protectedProcedure.query(() => db.listClients()),
-    create: protectedProcedure.input(clientInput).mutation(async ({ input }) => {
+    list: adminProcedure.query(() => db.listClients()),
+    create: adminProcedure.input(clientInput).mutation(async ({ input }) => {
       const id = await db.createClient(input);
       await logActivity("client", id, "created", `${input.organizationName} was added as a client.`);
       return { id };
     }),
-    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), values: clientInput })).mutation(async ({ input }) => {
+    update: adminProcedure.input(z.object({ id: z.number().int().positive(), values: clientInput })).mutation(async ({ input }) => {
       await db.updateClient(input.id, input.values);
       await logActivity("client", input.id, "updated", `${input.values.organizationName}'s record was updated.`);
       return { success: true };
@@ -121,19 +121,19 @@ export const operationsRouter = router({
 
   projects: router({
     list: protectedProcedure.query(() => db.listProjects()),
-    create: protectedProcedure.input(projectInput).mutation(async ({ input }) => {
+    create: adminProcedure.input(projectInput).mutation(async ({ input }) => {
       assertValidSchedule(input.startDate, input.deadline);
       const id = await db.createProject(input);
       await logActivity("project", id, "created", `${input.name} was created.`);
       return { id };
     }),
-    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), values: projectInput })).mutation(async ({ input }) => {
+    update: adminProcedure.input(z.object({ id: z.number().int().positive(), values: projectInput })).mutation(async ({ input }) => {
       assertValidSchedule(input.values.startDate, input.values.deadline);
       await db.updateProject(input.id, input.values);
       await logActivity("project", input.id, "updated", `${input.values.name} was updated.`);
       return { success: true };
     }),
-    updateStatus: protectedProcedure.input(z.object({ id: z.number().int().positive(), status: projectStatus })).mutation(async ({ input }) => {
+    updateStatus: adminProcedure.input(z.object({ id: z.number().int().positive(), status: projectStatus })).mutation(async ({ input }) => {
       await db.updateProject(input.id, { status: input.status });
       await logActivity("project", input.id, "status_updated", `Project status changed to ${input.status.replace("_", " ")}.`);
       return { success: true };
@@ -141,14 +141,14 @@ export const operationsRouter = router({
   }),
 
   tasks: router({
-    list: protectedProcedure.query(() => db.listTasks()),
-    create: protectedProcedure.input(taskInput).mutation(async ({ input }) => {
+    list: protectedProcedure.query(({ ctx }) => db.listTasks(ctx.user.role === "admin" ? null : ctx.user.email)),
+    create: adminProcedure.input(taskInput).mutation(async ({ input }) => {
       const id = await db.createTask(input);
       await logActivity("task", id, "created", `${input.title} was created.`);
       if (input.assignedMemberId) await sendAssignmentNotification(id);
       return { id };
     }),
-    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), values: taskInput })).mutation(async ({ input }) => {
+    update: adminProcedure.input(z.object({ id: z.number().int().positive(), values: taskInput })).mutation(async ({ input }) => {
       const before = await db.getTaskWithDetails(input.id);
       if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       await db.updateTask(input.id, input.values);
@@ -159,7 +159,9 @@ export const operationsRouter = router({
       }
       return { success: true };
     }),
-    updateStatus: protectedProcedure.input(z.object({ id: z.number().int().positive(), status: taskStatus })).mutation(async ({ input }) => {
+    updateStatus: protectedProcedure.input(z.object({ id: z.number().int().positive(), status: taskStatus })).mutation(async ({ input, ctx }) => {
+      const task = await db.getTaskWithDetails(input.id, ctx.user.role === "admin" ? null : ctx.user.email);
+      if (!task) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you." });
       await db.updateTask(input.id, { status: input.status });
       await logActivity("task", input.id, "status_updated", `Task status changed to ${input.status.replace("_", " ")}.`);
       return { success: true };
@@ -167,20 +169,20 @@ export const operationsRouter = router({
   }),
 
   notifications: router({
-    list: protectedProcedure.query(() => db.listNotifications()),
-    markRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => {
-      await db.markNotificationRead(input.id);
+    list: protectedProcedure.query(({ ctx }) => db.listNotifications(ctx.user.role === "admin" ? null : ctx.user.email)),
+    markRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      await db.markNotificationRead(input.id, ctx.user.role === "admin" ? null : ctx.user.email);
       return { success: true };
     }),
   }),
 
   reports: router({
-    projectSummary: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).query(async ({ input }) => {
+    projectSummary: adminProcedure.input(z.object({ projectId: z.number().int().positive() })).query(async ({ input }) => {
       const data = await db.getProjectReportData(input.projectId);
       if (!data) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
       return calculateProjectSummary(data);
     }),
-    generate: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(async ({ input }) => {
+    generate: adminProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(async ({ input }) => {
       const data = await db.getProjectReportData(input.projectId);
       if (!data) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
       return generateReportWithPython(buildProjectReportPayload(calculateProjectSummary(data)));

@@ -76,7 +76,7 @@ The task-assignment workflow is automatic. When a task is created with an assign
 | UI system | Existing accessible component primitives with custom Royal Edit styling | Preserves keyboard-friendly interaction patterns while applying the brand system consistently. |
 | Backend | Express and tRPC | Keeps client-server contracts typed end-to-end and reduces duplicated API definitions. |
 | Database layer | Drizzle ORM with Turso/libSQL | Preserves the SQL relational model while moving persistence to the user-owned Turso database. |
-| Authentication | Managed OAuth included with the application template | Provides a secure sign-in foundation for internal access. |
+| Authentication | Turso-backed email/password sessions with bcryptjs | Keeps credentials and session records in the user-owned Turso database without Manus OAuth. |
 | Automation | Python 3 + ReportLab invoked by the server | Creates branded PDF reports from structured project data. |
 | Email delivery | Nodemailer over the supplied Gmail SMTP configuration | Sends assignment and reassignment messages directly to team-member email addresses. |
 | Deployment runtime | Node 22 with Python 3 and ReportLab available in a Docker image | Allows the PDF generator to run in production as part of an on-demand request. |
@@ -89,7 +89,7 @@ Cormorant Garamond is used for editorial display language, DM Sans supports body
 
 ## 8. How to run locally
 
-The project uses the configured database and OAuth environment supplied by the hosting environment. No additional environment files should be committed.
+The project uses the user-owned Turso database and standard email/password authentication. No OAuth provider is required, and no credentials should be committed to source control. Configure `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `JWT_SECRET`, and the SMTP variables used by Nodemailer (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `FROM_EMAIL`).
 
 | Command | Purpose |
 |---|---|
@@ -99,6 +99,10 @@ The project uses the configured database and OAuth environment supplied by the h
 | `pnpm build` | Builds the production frontend and server bundle. |
 | `pnpm db:push` | Applies the idempotent operational schema to the configured Turso database. |
 | `python3 scripts/project_report.py` | Runs the PDF report generator, accepting JSON from standard input. |
+
+### Authentication and administrator bootstrap
+
+Registration creates a General User account by default. Passwords are hashed with bcryptjs before they are stored. Login creates a 30-day session record in Turso and sets an HTTP-only session cookie; active sessions are refreshed when they approach expiry, while expired sessions are deleted. The first administrator is created through the existing administrator bootstrap process. After that, only an Administrator should promote or manage other user accounts. The server enforces the role on every protected procedure; hiding interface controls is only an additional usability layer.
 
 ### Suggested product walkthrough
 
@@ -137,7 +141,7 @@ The prototype establishes the foundation for a larger internal platform. The nex
 
 | Area | Recommended improvement |
 |---|---|
-| Authentication and access | Add role-based permissions such as Administrator, Project Manager, Creative, and Viewer. |
+| Authentication and access | Keep the two-role model: Administrator manages operational records and General User works only on assigned tasks. Add audit visibility for role changes. |
 | Email notifications | Add delivery retries, bounce handling, and provider monitoring around the current Nodemailer SMTP integration. |
 | Per-person inbox | Restrict notification viewing so a member sees only their own alerts, while managers retain an oversight view. |
 | Project detail pages | Add dedicated project and task detail routes with timelines, comments, attachments, and change history. |
@@ -149,6 +153,6 @@ The prototype establishes the foundation for a larger internal platform. The nex
 
 ## 12. Data protection and security approach
 
-The prototype uses authenticated access and server-side validation for every operational procedure. A production rollout should require role-aware authorisation for sensitive actions, least-privilege database access, encrypted connections, secure secret management, audit trails, backup and restoration policies, and explicit data retention controls.
+The application uses authenticated access and server-side role validation for every operational procedure. Administrators manage team members, clients, projects, tasks, assignments, and reports. General users can view and update only their assigned tasks and notifications. A production rollout should also use least-privilege database access, encrypted connections, secure secret management, audit trails, backup and restoration policies, and explicit data retention controls.
 
 The interface should never treat a display-only control as a security boundary. Every permission must be enforced again by the server before data is returned or changed.

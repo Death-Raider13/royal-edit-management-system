@@ -10,11 +10,14 @@ describe("Turso connection configuration", () => {
     expect(authToken).toBeTruthy();
 
     const client = createClient({ url: databaseUrl!, authToken });
-    const result = await client.execute("SELECT 1 AS healthy");
-    expect(result.rows).toHaveLength(1);
-    expect(result.rows[0]?.healthy).toBe(1);
-    client.close();
-  });
+    try {
+      const result = await client.execute("SELECT 1 AS healthy");
+      expect(result.rows).toHaveLength(1);
+      expect(result.rows[0]?.healthy).toBe(1);
+    } finally {
+      client.close();
+    }
+  }, 15_000);
 });
 
 describe("SMTP configuration", () => {

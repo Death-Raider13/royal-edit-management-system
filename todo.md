@@ -1,0 +1,42 @@
+# Project TODO
+
+- [x] Inspect Royal Edit Media House brand kit and apply its logo, typography, and colour system across the interface.
+- [x] Define the relational data model for team members, clients, projects, tasks, notifications, and activity records.
+- [x] Implement authenticated backend procedures for creating, listing, editing, and deactivating team members.
+- [x] Implement authenticated backend procedures for creating, listing, and editing clients.
+- [x] Implement authenticated backend procedures for creating, listing, editing, and inline-updating projects.
+- [x] Implement authenticated backend procedures for creating, listing, editing, assigning, reassigning, and inline-updating tasks.
+- [x] Create automatic in-app task-assignment notifications with task, project, priority, and deadline context.
+- [x] Deliver automatic in-app task notifications and Nodemailer emails for assignment and reassignment.
+- [x] Build a branded dashboard with summary metrics, overdue-task visibility, and recent activity.
+- [x] Build responsive team, client, project, task, and report management screens.
+- [x] Add per-project summary reporting with task-status counts, assignees, overdue tasks, and completion percentage.
+- [x] Add a server-side Python/ReportLab report generator that produces downloadable PDF reports on demand.
+- [x] Write and run unit tests for the primary data-validation, task-assignment, and reporting workflows.
+- [x] Verify the responsive interface and module empty states across desktop and mobile viewports.
+- [x] Write technical documentation, setup instructions, future-expansion notes, and demo guidance.
+- [x] Add business-rule tests for project date validation, task input validation, assignment context, and Python report output.
+- [x] Reserve an authenticated, real-data browser walkthrough as a user-acceptance step; the prototype workspace remains free of fictional operational records.
+- [x] Confirm the Turso database URL and authentication token, Nodemailer sender credentials, and target GitHub repository.
+- [x] Replace managed relational persistence and database schema code with Turso/libSQL-backed data access.
+- [x] Replace HTML and Markdown downloads with a server-generated PDF project report.
+- [x] Configure Nodemailer to send assignment and reassignment messages to the stored team-member email address.
+- [x] Update automated tests, documentation, and deployment configuration for Turso, PDF output, and email delivery.
+- [x] Push the completed source code to the user’s selected GitHub repository.
+- [x] Audit and remove Manus OAuth configuration, routes, and frontend login dependencies.
+- [x] Add Turso-backed credentials and session tables for conventional email/password authentication.
+- [x] Implement secure password hashing, login, logout, session expiry, and protected-route handling.
+- [x] Replace the Manus login screen with a standard Royal Edit sign-in and account bootstrap flow.
+- [x] Add authentication tests and update environment/deployment documentation.
+- [x] Push the authentication migration to the Death-Raider13 GitHub repository.
+- [x] Restrict client, project, task creation, assignment, team administration, and full reports to administrators.
+- [x] Restrict general users to viewing and updating their assigned tasks and receiving notifications.
+- [x] Add server-side role authorization tests for both administrator and general-user contexts.
+- [x] Hide administrator-only actions in the interface while preserving server enforcement.
+- [x] Update the role and permissions documentation; GitHub push remains the final handover step.
+- [x] Add comprehensive authentication tests for registration, login success and failure, password verification, protected access, and session expiry/refresh.
+- [x] Document the Turso-backed email/password authentication flow, required environment variables, and administrator bootstrap process.
+- [ ] Commit and push the local authentication fixes, including bcryptjs and related corrections, to Death-raider13/royal-edit-management-system and verify the remote branch.
+- [x] Add a successful-login test covering password verification, last-signed-in update, session creation, and session-cookie creation.
+- [x] Add an authenticated protected-context test beyond logout for the standard session flow.
+- [x] Add a test that exercises a protected operations procedure with a valid session-backed authenticated context.

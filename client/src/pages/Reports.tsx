@@ -1,13 +1,17 @@
 import { EmptyPanel, formatDate, PageHeader, StatusPill } from "@/components/OperationsUI";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { ChartNoAxesCombined, Download, FileText } from "lucide-react";
 import { useState } from "react";
 
 export default function Reports() {
-  const { data: projects } = trpc.operations.projects.list.useQuery(); const [projectId, setProjectId] = useState<number | null>(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const { data: projects } = trpc.operations.projects.list.useQuery(undefined, { enabled: isAdmin }); const [projectId, setProjectId] = useState<number | null>(null);
   const { data: report, isLoading } = trpc.operations.reports.projectSummary.useQuery({ projectId: projectId ?? 1 }, { enabled: Boolean(projectId) });
   const generate = trpc.operations.reports.generate.useMutation();
+  if (!isAdmin) return <EmptyPanel title="Reports are manager-controlled." description="Only the Royal Edit administrator can view project reporting and generate PDFs." />;
   const downloadPdf = async () => {
     if (!projectId) return;
     const generated = await generate.mutateAsync({ projectId });
