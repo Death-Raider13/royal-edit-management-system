@@ -76,3 +76,6 @@
 - [ ] Add a Vercel-safe shared auth/database initialization path.
 - [ ] Validate registration and login return tRPC JSON in production.
 - [ ] Push and checkpoint the unified auth crash fix.
+- [ ] Isolate the `/api/trpc` function-invocation crash using the Vercel production request contract.
+- [ ] Replace the fragile Express invocation bridge with a Vercel-safe adapter.
+- [ ] Validate auth JSON responses and push the adapter fix.

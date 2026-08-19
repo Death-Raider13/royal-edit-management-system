@@ -10,19 +10,35 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { operationsRouter } from "./routers/operations";
 
 const SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+function serializeSessionCookie(value: string, maxAge: number) {
+  return `${SESSION_COOKIE}=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/; HttpOnly; SameSite=Lax${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+}
 
 function setSessionCookie(res: any, sessionId: string) {
-  res.cookie(SESSION_COOKIE, sessionId, {
+  const options = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: SESSION_MAX_AGE_MS,
+    sameSite: "lax" as const,
+    maxAge: Math.floor(SESSION_MAX_AGE_MS / 1000),
     path: "/",
-  });
+  };
+  if (typeof res?.cookie === "function") {
+    res.cookie(SESSION_COOKIE, sessionId, options);
+    return;
+  }
+  if (typeof res?.append === "function") {
+    res.append("set-cookie", serializeSessionCookie(sessionId, options.maxAge));
+  }
 }
 
 function clearSessionCookie(res: any) {
-  res.clearCookie(SESSION_COOKIE, { path: "/" });
+  if (typeof res?.clearCookie === "function") {
+    res.clearCookie(SESSION_COOKIE, { path: "/" });
+    return;
+  }
+  if (typeof res?.append === "function") {
+    res.append("set-cookie", serializeSessionCookie("", 0));
+  }
 }
 
 export const appRouter = router({

@@ -1,30 +1,44 @@
-import express from "express";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "../server/routers";
-import { createContext } from "../server/_core/context";
+import { validateSession } from "../server/_core/auth";
+import { SESSION_COOKIE } from "../shared/const";
+import { parse as parseCookieHeader } from "cookie";
 
-const app = express();
-const jsonParser = express.json({ limit: "50mb" });
-const urlencodedParser = express.urlencoded({ limit: "50mb", extended: true });
-app.use((req, res, next) => {
-  if (req.body !== undefined) return next();
-  return jsonParser(req, res, next);
-});
-app.use((req, res, next) => {
-  if (req.body !== undefined) return next();
-  return urlencodedParser(req, res, next);
-});
-const middleware = createExpressMiddleware({ router: appRouter, createContext });
-app.use("/api/trpc", middleware);
-app.use("/trpc", middleware);
-app.use("/", middleware);
-
-export default function handler(req: any, res: any) {
-  const trpcPath = typeof req.query?.trpcPath === "string" ? req.query.trpcPath : undefined;
-  if (trpcPath) {
-    const sourceUrl = new URL(req.url ?? "/", "http://localhost");
-    sourceUrl.searchParams.delete("trpcPath");
-    req.url = `/api/trpc/${trpcPath}${sourceUrl.search ? sourceUrl.search : ""}`;
+async function createFetchContext({ req, resHeaders }: { req: Request; resHeaders: Headers }) {
+  let user = null;
+  try {
+    const cookies = parseCookieHeader(req.headers.get("cookie") ?? "");
+    const sessionId = cookies[SESSION_COOKIE];
+    if (sessionId) {
+      const result = await validateSession(sessionId);
+      user = result?.user ?? null;
+    }
+  } catch {
+    user = null;
   }
-  return app(req, res);
+  return { req, res: resHeaders, user } as any;
 }
+
+function normalizeRequest(request: Request) {
+  const url = new URL(request.url);
+  const trpcPath = url.searchParams.get("trpcPath");
+  if (!trpcPath) return request;
+  url.searchParams.delete("trpcPath");
+  url.pathname = `/api/trpc/${trpcPath}`;
+  return new Request(url, request);
+}
+
+export default {
+  async fetch(request: Request) {
+    const normalizedRequest = normalizeRequest(request);
+    return fetchRequestHandler({
+      endpoint: "/api/trpc",
+      req: normalizedRequest,
+      router: appRouter,
+      createContext: createFetchContext,
+      responseMeta({ ctx }) {
+        return { headers: ctx?.res instanceof Headers ? ctx.res : undefined };
+      },
+    });
+  },
+};
