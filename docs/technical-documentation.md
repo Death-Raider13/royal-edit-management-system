@@ -175,3 +175,7 @@ The SPA fallback excludes `/api/*` using a negative-lookahead rewrite so tRPC re
 ## 14. Vercel Turso runtime dependency
 
 The Vercel Node function imports the standard Drizzle libSQL adapter and now declares `@libsql/linux-x64-gnu` explicitly. This prevents Vercel’s serverless bundle from omitting the optional Linux native libSQL runtime, which otherwise causes the `/api/trpc` function to crash during module initialization before login can run.
+
+## 15. Vercel Express entrypoint correction
+
+Vercel’s supported Express deployment path is now the root `server.ts` entrypoint. It owns `/api/trpc`, serves the built React assets from `dist/public`, and falls back to `index.html` for browser routes. The earlier custom `api/trpc.ts` function and rewrite layer were removed because they caused function discovery and invocation failures in the connected deployment. `api/report.py` remains separate so the Python/ReportLab reporting implementation is preserved.

@@ -4,19 +4,6 @@
   "functions": {
     "api/report.py": {
       "maxDuration": 60
-    },
-    "api/trpc.ts": {
-      "maxDuration": 60
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/trpc/:path*",
-      "destination": "/api/trpc?trpcPath=:path*"
-    },
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
-  ]
+  }
 }
