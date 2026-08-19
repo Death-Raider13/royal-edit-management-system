@@ -79,3 +79,7 @@
 - [ ] Isolate the `/api/trpc` function-invocation crash using the Vercel production request contract.
 - [ ] Replace the fragile Express invocation bridge with a Vercel-safe adapter.
 - [ ] Validate auth JSON responses and push the adapter fix.
+- [ ] Simplify Vercel deployment to one supported backend entrypoint.
+- [ ] Remove layered tRPC rewrites and duplicate Express/Fetch adapters.
+- [ ] Preserve Python reporting and validate auth JSON responses after simplification.
+- [ ] Push and checkpoint the simplified deployment architecture.
