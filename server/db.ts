@@ -1,6 +1,7 @@
 import { and, desc, eq, lte, ne, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/libsql";
-import { createClient as createLibsqlClient } from "@libsql/client";
+import * as libsqlDriverCore from "drizzle-orm/libsql/driver-core";
+import type { LibSQLDatabase } from "drizzle-orm/libsql/driver-core";
+import { createClient as createLibsqlClient } from "@libsql/client/web";
 import {
   activityLogs,
   adminNotifications,
@@ -22,7 +23,8 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+const createDrizzleDatabase = (libsqlDriverCore as unknown as { construct: (client: unknown, config?: unknown) => LibSQLDatabase }).construct;
+let _db: LibSQLDatabase | null = null;
 
 const projectFields = {
   id: projects.id,
@@ -64,7 +66,7 @@ export async function getDb() {
   if (!_db && process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
     try {
       const client = createLibsqlClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
-      _db = drizzle(client);
+      _db = createDrizzleDatabase(client);
     } catch (error) {
       console.warn("[Database] Failed to connect to Turso:", error);
       _db = null;

@@ -68,3 +68,7 @@
 - [x] Fix Express request typing for headers and protocol in the Vercel build.
 - [ ] Validate deployed-style login and tRPC responses after the routing fix.
 - [ ] Save and push the Vercel deployment fix.
+- [ ] Diagnose the deployed `auth.login` 500 and plain-text response.
+- [ ] Verify Vercel production has the required Turso and JWT environment variables.
+- [ ] Harden or correct the serverless login path so failures return tRPC JSON.
+- [ ] Validate production login and push the final fix.
