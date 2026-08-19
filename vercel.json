@@ -2,14 +2,17 @@
   "buildCommand": "pnpm build",
   "outputDirectory": "dist/public",
   "functions": {
-    "api/[...path].ts": {
+    "api/report.py": {
       "maxDuration": 60
     },
-    "api/report.py": {
+    "api/trpc/[...path].ts": {
       "maxDuration": 60
     }
   },
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }
