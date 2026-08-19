@@ -64,3 +64,7 @@
 - [x] Document the Vercel deployment setup and save a checkpoint.
 - [x] Preserve scripts/project_report.py and ReportLab as part of the project while adapting deployment execution for Vercel.
 - [x] Remove or isolate the temporary Node PDF replacement so Python remains the canonical report implementation.
+- [x] Fix Vercel `/api/trpc` routing returning the React HTML fallback instead of tRPC JSON.
+- [x] Fix Express request typing for headers and protocol in the Vercel build.
+- [ ] Validate deployed-style login and tRPC responses after the routing fix.
+- [ ] Save and push the Vercel deployment fix.

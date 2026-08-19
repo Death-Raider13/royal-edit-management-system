@@ -16,7 +16,8 @@ export async function createContext(
   let user: User | null = null;
 
   try {
-    const cookies = parseCookieHeader(opts.req.headers.cookie ?? "");
+    const requestHeaders = (opts.req as unknown as { headers?: { cookie?: string } }).headers;
+    const cookies = parseCookieHeader(requestHeaders?.cookie ?? "");
     const sessionId = cookies[SESSION_COOKIE];
     if (sessionId) {
       const result = await validateSession(sessionId);

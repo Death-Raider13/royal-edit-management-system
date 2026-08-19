@@ -167,3 +167,7 @@ The repository now includes a Vercel-compatible deployment layer without removin
 Vercel must receive the private values `JWT_SECRET`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `FROM_EMAIL`, and a newly generated `REPORT_INTERNAL_SECRET`. `OWNER_NAME` and `OWNER_OPEN_ID` are not required by the current runtime. Vercel supplies `VERCEL` and `VERCEL_URL` automatically; the report bridge uses those values to call the protected Python function. The repository must not contain an `.env` file or credential values.
 
 The Python function uses `requirements.txt` for Flask and ReportLab. The Vercel preview should be tested for login, invitation password setup, task progress notifications, assignment email, and PDF report download before production promotion.
+
+## 13. Vercel API routing fix
+
+The SPA fallback excludes `/api/*` using a negative-lookahead rewrite so tRPC requests cannot be rewritten to `index.html`. This prevents the browser from receiving HTML where it expects JSON. The server context and invitation URL builders also use defensive request-header casts because Vercel’s serverless build can expose narrower Express request declarations than the local development type set. After redeployment, `/api/trpc/auth.me` and `/api/trpc/auth.login` must return JSON responses rather than an HTML document.

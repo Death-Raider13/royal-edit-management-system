@@ -116,7 +116,8 @@ export const operationsRouter = router({
       const id = await db.createTeamMember({ ...input, userId, invitationStatus: "pending", invitationSentAt: sentAt });
       const token = crypto.randomUUID();
       await db.createInvitationToken({ token, teamMemberId: id, expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48) });
-      const origin = `${ctx.req.protocol}://${ctx.req.headers.host ?? "localhost:3000"}`;
+      const request = ctx.req as unknown as { protocol?: string; headers?: { host?: string } };
+      const origin = `${request.protocol ?? (process.env.VERCEL ? "https" : "http")}://${request.headers?.host ?? process.env.VERCEL_URL ?? "localhost:3000"}`;
       try {
         await sendTeamInvitationEmail({ recipientName: input.name, recipientEmail: input.email, inviteUrl: `${origin}/setup-password?token=${encodeURIComponent(token)}` });
       } catch (error) {
@@ -137,7 +138,8 @@ export const operationsRouter = router({
       const token = crypto.randomUUID();
       await db.createInvitationToken({ token, teamMemberId: member.id, expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48) });
       await db.updateTeamMember(member.id, { invitationStatus: "pending", invitationSentAt: new Date() });
-      const origin = `${ctx.req.protocol}://${ctx.req.headers.host ?? "localhost:3000"}`;
+      const request = ctx.req as unknown as { protocol?: string; headers?: { host?: string } };
+      const origin = `${request.protocol ?? (process.env.VERCEL ? "https" : "http")}://${request.headers?.host ?? process.env.VERCEL_URL ?? "localhost:3000"}`;
       await sendTeamInvitationEmail({ recipientName: member.name, recipientEmail: member.email, inviteUrl: `${origin}/setup-password?token=${encodeURIComponent(token)}` });
       await logActivity("team_member", member.id, "invitation_resent", `A new workspace invitation was sent to ${member.name}.`);
       return { success: true };

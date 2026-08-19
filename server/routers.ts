@@ -101,7 +101,8 @@ export const appRouter = router({
 
     logout: protectedProcedure
       .mutation(async ({ ctx }) => {
-        const cookies = ctx.req.headers.cookie ?? "";
+        const requestHeaders = (ctx.req as unknown as { headers?: { cookie?: string } }).headers;
+        const cookies = requestHeaders?.cookie ?? "";
         const { parse } = await import("cookie");
         const sessionId = parse(cookies)[SESSION_COOKIE];
         if (sessionId) {
