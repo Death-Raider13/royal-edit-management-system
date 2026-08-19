@@ -28,17 +28,15 @@ function normalizeRequest(request: Request) {
   return new Request(url, request);
 }
 
-export default {
-  async fetch(request: Request) {
-    const normalizedRequest = normalizeRequest(request);
-    return fetchRequestHandler({
-      endpoint: "/api/trpc",
-      req: normalizedRequest,
-      router: appRouter,
-      createContext: createFetchContext,
-      responseMeta({ ctx }) {
-        return { headers: ctx?.res instanceof Headers ? ctx.res : undefined };
-      },
-    });
-  },
-};
+export default async function handler(request: Request) {
+  const normalizedRequest = normalizeRequest(request);
+  return fetchRequestHandler({
+    endpoint: "/api/trpc",
+    req: normalizedRequest,
+    router: appRouter,
+    createContext: createFetchContext,
+    responseMeta({ ctx }) {
+      return { headers: ctx?.res instanceof Headers ? ctx.res : undefined };
+    },
+  });
+}
