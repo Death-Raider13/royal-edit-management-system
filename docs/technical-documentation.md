@@ -159,3 +159,11 @@ The prototype establishes the foundation for a larger internal platform. The nex
 The application uses authenticated access and server-side role validation for every operational procedure. Administrators manage team members, clients, projects, tasks, assignments, and reports. General users can view and update only their assigned tasks and notifications. A production rollout should also use least-privilege database access, encrypted connections, secure secret management, audit trails, backup and restoration policies, and explicit data retention controls.
 
 The interface should never treat a display-only control as a security boundary. Every permission must be enforced again by the server before data is returned or changed.
+
+## 12. Vercel deployment
+
+The repository now includes a Vercel-compatible deployment layer without removing the existing Python reporting implementation. `api/[...path].ts` exposes the Express/tRPC backend as a serverless function, while `vercel.json` keeps `/api/*` requests on the backend and rewrites browser routes to the React entry document. The Python/ReportLab implementation remains canonical in `scripts/project_report.py`; `api/report.py` exposes that same script through a protected Python function when the application runs on Vercel. Local development continues to execute the script through the existing Python subprocess path.
+
+Vercel must receive the private values `JWT_SECRET`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `FROM_EMAIL`, and a newly generated `REPORT_INTERNAL_SECRET`. `OWNER_NAME` and `OWNER_OPEN_ID` are not required by the current runtime. Vercel supplies `VERCEL` and `VERCEL_URL` automatically; the report bridge uses those values to call the protected Python function. The repository must not contain an `.env` file or credential values.
+
+The Python function uses `requirements.txt` for Flask and ReportLab. The Vercel preview should be tested for login, invitation password setup, task progress notifications, assignment email, and PDF report download before production promotion.

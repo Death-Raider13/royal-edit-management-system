@@ -71,8 +71,10 @@ export function buildProjectReportPayload(summary: ReturnType<typeof calculatePr
   };
 }
 
+type ReportDocument = { filename: string; contentType: "application/pdf"; pdfBase64: string };
+
 export async function generateReportWithPython(payload: ReturnType<typeof buildProjectReportPayload>) {
-  return new Promise<{ filename: string; contentType: "application/pdf"; pdfBase64: string }>((resolve, reject) => {
+  return new Promise<ReportDocument>((resolve, reject) => {
     const pythonExec = process.platform === "win32" ? "python" : "python3";
     const child = spawn(pythonExec, ["scripts/project_report.py"], { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
@@ -83,7 +85,7 @@ export async function generateReportWithPython(payload: ReturnType<typeof buildP
     child.on("close", (code) => {
       if (code !== 0) return reject(new Error(stderr || "The reporting service could not generate this report."));
       try {
-        resolve(JSON.parse(stdout) as { filename: string; contentType: "application/pdf"; pdfBase64: string });
+        resolve(JSON.parse(stdout) as ReportDocument);
       } catch {
         reject(new Error("The reporting service returned an invalid document."));
       }
@@ -91,4 +93,21 @@ export async function generateReportWithPython(payload: ReturnType<typeof buildP
     child.stdin.write(JSON.stringify(payload));
     child.stdin.end();
   });
+}
+
+export async function generateReportWithVercelPython(payload: ReturnType<typeof buildProjectReportPayload>) {
+  const deploymentUrl = process.env.VERCEL_URL;
+  const secret = process.env.REPORT_INTERNAL_SECRET;
+  if (!deploymentUrl || !secret) throw new Error("Vercel Python reporting is not configured.");
+  const response = await fetch(`https://${deploymentUrl}/api/report`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-report-secret": secret },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error("The Vercel Python reporting service could not generate this report.");
+  return await response.json() as ReportDocument;
+}
+
+export async function generateReport(payload: ReturnType<typeof buildProjectReportPayload>) {
+  return process.env.VERCEL ? generateReportWithVercelPython(payload) : generateReportWithPython(payload);
 }

@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "../db";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
-import { buildProjectReportPayload, calculateProjectSummary, generateReportWithPython } from "../reporting";
+import { buildProjectReportPayload, calculateProjectSummary, generateReport } from "../reporting";
 import { buildAssignmentNotification, buildTaskProgressNotification } from "../workflow";
 import { sendTaskAssignmentEmail, sendTeamInvitationEmail } from "../mailer";
 import { hashPassword } from "../_core/auth";
@@ -234,7 +234,7 @@ export const operationsRouter = router({
     generate: adminProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(async ({ input }) => {
       const data = await db.getProjectReportData(input.projectId);
       if (!data) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
-      return generateReportWithPython(buildProjectReportPayload(calculateProjectSummary(data)));
+      return generateReport(buildProjectReportPayload(calculateProjectSummary(data)));
     }),
   }),
 });

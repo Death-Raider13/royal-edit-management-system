@@ -54,3 +54,13 @@
 - [x] Scope administrator notification read actions so IDs cannot collide with team-member notification IDs.
 - [x] Add a distinct near-complete progress signal separate from generic in-progress.
 - [x] Save a new checkpoint after hardening manager progress notifications.
+- [x] Audit which website changes are genuinely required for Vercel deployment.
+- [x] Confirm whether the current server entrypoint, SPA routing, and Python PDF reporting need adaptation for Vercel.
+- [x] Separate required deployment secrets from unnecessary owner bootstrap variables.
+- [x] Add a Vercel-compatible serverless API entrypoint for Express/tRPC.
+- [x] Preserve `/api/*` through Vercel filesystem function routing and add the React SPA fallback rewrite.
+- [x] Preserve the Python subprocess PDF report path and expose it through a Vercel-compatible Python function.
+- [x] Validate Vercel build configuration, tests, and PDF output.
+- [x] Document the Vercel deployment setup and save a checkpoint.
+- [x] Preserve scripts/project_report.py and ReportLab as part of the project while adapting deployment execution for Vercel.
+- [x] Remove or isolate the temporary Node PDF replacement so Python remains the canonical report implementation.
