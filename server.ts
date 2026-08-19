@@ -11,6 +11,15 @@ const staticRoot = path.join(process.cwd(), "dist", "public");
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
+// Lightweight debug endpoint to inspect what the Vercel function runtime forwards.
+app.all("/api/_debug", (req, res) => {
+  res.json({
+    method: req.method,
+    url: req.url,
+    originalUrl: (req as any).originalUrl ?? null,
+    headers: Object.keys(req.headers).length ? req.headers : null,
+  });
+});
 app.use(express.static(staticRoot));
 app.get("*", (_request, response) => {
   response.sendFile(path.join(staticRoot, "index.html"));
