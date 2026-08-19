@@ -17,8 +17,13 @@ app.get("*", (_request, response) => {
 });
 
 const port = Number(process.env.PORT ?? 3000);
-app.listen(port, () => {
-  console.log(`Royal Edit server listening on port ${port}`);
-});
+
+// When deployed as a Vercel serverless function the app will be imported
+// by the function wrapper — do not call `listen()` on import in that case.
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Royal Edit server listening on port ${port}`);
+  });
+}
 
 export default app;
