@@ -1,14 +1,12 @@
 import "dotenv/config";
 import express from "express";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./server/routers";
 import { createContext } from "./server/_core/context";
 
 const app = express();
-const projectRoot = path.dirname(fileURLToPath(import.meta.url));
-const staticRoot = path.join(projectRoot, "dist", "public");
+const staticRoot = path.join(process.cwd(), "dist", "public");
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
