@@ -4,8 +4,16 @@ import { appRouter } from "../server/routers";
 import { createContext } from "../server/_core/context";
 
 const app = express();
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+const jsonParser = express.json({ limit: "50mb" });
+const urlencodedParser = express.urlencoded({ limit: "50mb", extended: true });
+app.use((req, res, next) => {
+  if (req.body !== undefined) return next();
+  return jsonParser(req, res, next);
+});
+app.use((req, res, next) => {
+  if (req.body !== undefined) return next();
+  return urlencodedParser(req, res, next);
+});
 const middleware = createExpressMiddleware({ router: appRouter, createContext });
 app.use("/api/trpc", middleware);
 app.use("/trpc", middleware);

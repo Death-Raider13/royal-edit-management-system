@@ -72,3 +72,7 @@
 - [ ] Verify Vercel production has the required Turso and JWT environment variables.
 - [ ] Harden or correct the serverless login path so failures return tRPC JSON.
 - [ ] Validate production login and push the final fix.
+- [ ] Trace the shared Vercel crash affecting both `auth.register` and `auth.login`.
+- [ ] Add a Vercel-safe shared auth/database initialization path.
+- [ ] Validate registration and login return tRPC JSON in production.
+- [ ] Push and checkpoint the unified auth crash fix.
