@@ -28,6 +28,9 @@ importers:
       '@libsql/client':
         specifier: ^0.17.4
         version: 0.17.4
+      '@libsql/linux-x64-gnu':
+        specifier: ^0.5.29
+        version: 0.5.29
       '@radix-ui/react-accordion':
         specifier: ^1.2.12
         version: 1.2.12(@types/react-dom@19.2.1(@types/react@19.2.1))(@types/react@19.2.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -5414,8 +5417,7 @@ snapshots:
   '@libsql/linux-arm64-musl@0.5.29':
     optional: true
 
-  '@libsql/linux-x64-gnu@0.5.29':
-    optional: true
+  '@libsql/linux-x64-gnu@0.5.29': {}
 
   '@libsql/linux-x64-musl@0.5.29':
     optional: true

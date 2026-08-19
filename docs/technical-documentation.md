@@ -171,3 +171,7 @@ The Python function uses `requirements.txt` for Flask and ReportLab. The Vercel 
 ## 13. Vercel API routing fix
 
 The SPA fallback excludes `/api/*` using a negative-lookahead rewrite so tRPC requests cannot be rewritten to `index.html`. This prevents the browser from receiving HTML where it expects JSON. The server context and invitation URL builders also use defensive request-header casts because Vercel’s serverless build can expose narrower Express request declarations than the local development type set. After redeployment, `/api/trpc/auth.me` and `/api/trpc/auth.login` must return JSON responses rather than an HTML document.
+
+## 14. Vercel Turso runtime dependency
+
+The Vercel Node function imports the standard Drizzle libSQL adapter and now declares `@libsql/linux-x64-gnu` explicitly. This prevents Vercel’s serverless bundle from omitting the optional Linux native libSQL runtime, which otherwise causes the `/api/trpc` function to crash during module initialization before login can run.
