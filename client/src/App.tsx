@@ -15,6 +15,7 @@ import Notifications from "./pages/Notifications";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import SetupPassword from "./pages/SetupPassword";
+import LandingPage from "./pages/Landing";
 import { useAuth } from "./_core/hooks/useAuth";
 
 function Workspace({ children }: { children: React.ReactNode }) {
@@ -25,6 +26,7 @@ function Workspace({ children }: { children: React.ReactNode }) {
 function Router() {
   return (
     <Switch>
+      <Route path="/portfolio" component={LandingPage} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/setup-password" component={SetupPassword} />

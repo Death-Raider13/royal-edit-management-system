@@ -1,6 +1,10 @@
 import nodemailer from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import dns from "node:dns";
 
-const transport = nodemailer.createTransport({
+dns.setDefaultResultOrder("ipv4first");
+
+const options: SMTPTransport.Options = {
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT ?? 465),
   secure: process.env.SMTP_SECURE === "true",
@@ -8,7 +12,9 @@ const transport = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASSWORD ?? process.env.SMTP_PASS,
   },
-});
+};
+
+const transport = nodemailer.createTransport(options);
 
 export async function sendTaskAssignmentEmail(input: {
   recipientName: string;
