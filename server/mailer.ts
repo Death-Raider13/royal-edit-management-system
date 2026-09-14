@@ -4,16 +4,26 @@ import dns from "node:dns";
 
 dns.setDefaultResultOrder("ipv4first");
 
-const options = {
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT ?? 465),
-  secure: process.env.SMTP_SECURE === "true",
-  family: 4,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD ?? process.env.SMTP_PASS,
-  },
-} as SMTPTransport.Options;
+const host = process.env.SMTP_HOST ?? "";
+const isGmail = host.includes("gmail") || (process.env.SMTP_USER ?? "").endsWith("@gmail.com");
+
+const options = (isGmail
+  ? {
+      service: "gmail",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD ?? process.env.SMTP_PASS,
+      },
+    }
+  : {
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT ?? 465),
+      secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : true,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD ?? process.env.SMTP_PASS,
+      },
+    }) as SMTPTransport.Options;
 
 const transport = nodemailer.createTransport(options);
 
